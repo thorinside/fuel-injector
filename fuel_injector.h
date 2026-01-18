@@ -383,4 +383,36 @@ inline void applyDensityBurstInjection(bool* output_pattern, uint8_t* burst_beat
     }
 }
 
+inline void generatePermutation(uint8_t* permutation, uint8_t segment_count, XorShift32* rng) {
+    for (uint8_t i = 0; i < segment_count; i++) {
+        permutation[i] = i;
+    }
+    
+    for (uint8_t i = segment_count - 1; i > 0; i--) {
+        uint8_t j = rng->next() % (i + 1);
+        uint8_t temp = permutation[i];
+        permutation[i] = permutation[j];
+        permutation[j] = temp;
+    }
+}
+
+inline void applyPermutationInjection(bool* input_pattern, bool* output_pattern, uint8_t* permutation, uint16_t ppqn, uint16_t pattern_length) {
+    uint16_t eighth_note = ppqn / 2;
+    uint8_t segment_count = pattern_length / eighth_note;
+    
+    for (uint8_t i = 0; i < segment_count; i++) {
+        uint16_t src_start = permutation[i] * eighth_note;
+        uint16_t dst_start = i * eighth_note;
+        
+        for (uint16_t j = 0; j < eighth_note; j++) {
+            uint16_t src_pos = src_start + j;
+            uint16_t dst_pos = dst_start + j;
+            
+            if (src_pos < pattern_length && dst_pos < pattern_length) {
+                output_pattern[dst_pos] = input_pattern[src_pos];
+            }
+        }
+    }
+}
+
 #endif

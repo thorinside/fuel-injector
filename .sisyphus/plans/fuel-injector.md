@@ -560,7 +560,7 @@ Task 15 (Hardware Build & Verification)
 
 ---
 
-- [ ] 10. Implement Injection: Sub-Bar Permutation
+- [x] 10. Implement Injection: Sub-Bar Permutation
 
   **What to do**:
   - Reorder time segments within bar at eighth-note granularity

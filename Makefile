@@ -1,6 +1,6 @@
 PLUGIN_NAME = fuel_injector
 SOURCES = fuel_injector.cpp
-TEST_SOURCES = tests/test_main.cpp tests/test_example.cpp tests/test_data_structures.cpp tests/test_cv_clock.cpp tests/test_midi_clock.cpp tests/test_pattern_learning.cpp tests/test_change_detection.cpp tests/test_injection_microtiming.cpp tests/test_injection_omission.cpp tests/test_injection_roll.cpp tests/test_injection_density.cpp
+TEST_SOURCES = tests/test_main.cpp tests/test_example.cpp tests/test_data_structures.cpp tests/test_cv_clock.cpp tests/test_midi_clock.cpp tests/test_pattern_learning.cpp tests/test_change_detection.cpp tests/test_injection_microtiming.cpp tests/test_injection_omission.cpp tests/test_injection_roll.cpp tests/test_injection_density.cpp tests/test_injection_permutation.cpp
 TEST_RUNNER = tests/test_runner
 
 UNAME_S := $(shell uname -s)
