@@ -667,7 +667,7 @@ Task 15 (Hardware Build & Verification)
 
 ---
 
-- [ ] 13. Implement Parameter System and Pages
+- [x] 13. Implement Parameter System and Pages
 
   **What to do**:
   - Define parameters array with all parameters
