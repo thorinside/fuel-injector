@@ -301,4 +301,50 @@ inline void applyOmissionInjection(bool* output_pattern, uint8_t* omit_indices, 
     }
 }
 
+inline void selectHitsForRoll(ChannelPattern* pattern, uint8_t* roll_indices, uint8_t* roll_count, uint8_t* roll_subdivisions, uint8_t fuel, XorShift32* rng, uint16_t pattern_length) {
+    *roll_count = 0;
+    
+    uint8_t hit_count = 0;
+    uint16_t hit_positions[MAX_TICKS_PER_BAR];
+    
+    for (int i = 0; i < pattern_length; i++) {
+        if (pattern->hit_positions_bar1[i] > 0) {
+            hit_positions[hit_count++] = i;
+        }
+    }
+    
+    if (hit_count == 0) {
+        return;
+    }
+    
+    uint8_t subdivisions[] = {2, 3, 4};
+    
+    for (uint8_t i = 0; i < hit_count; i++) {
+        if (shouldApplyInjection(100, fuel, *rng)) {
+            roll_indices[*roll_count] = hit_positions[i];
+            uint8_t subdiv_index = rng->next() % 3;
+            roll_subdivisions[*roll_count] = subdivisions[subdiv_index];
+            (*roll_count)++;
+        }
+    }
+}
+
+inline void applyRollInjection(bool* output_pattern, uint8_t* roll_indices, uint8_t roll_count, uint8_t* roll_subdivisions, uint16_t ppqn) {
+    for (uint8_t i = 0; i < roll_count; i++) {
+        uint16_t original_position = roll_indices[i];
+        uint8_t subdivisions = roll_subdivisions[i];
+        uint16_t spacing = ppqn / subdivisions;
+        
+        uint16_t beat_start = (original_position / ppqn) * ppqn;
+        uint16_t beat_end = beat_start + ppqn;
+        
+        for (uint8_t j = 1; j < subdivisions; j++) {
+            uint16_t new_position = original_position + (spacing * j);
+            if (new_position < beat_end && new_position < MAX_TICKS_PER_BAR) {
+                output_pattern[new_position] = true;
+            }
+        }
+    }
+}
+
 #endif

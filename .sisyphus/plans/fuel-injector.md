@@ -494,7 +494,7 @@ Task 15 (Hardware Build & Verification)
 
 ---
 
-- [ ] 8. Implement Injection: Hit Duplication / Roll
+- [x] 8. Implement Injection: Hit Duplication / Roll
 
   **What to do**:
   - Convert single hit to double, triplet, or ratchet
