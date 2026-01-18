@@ -40,7 +40,8 @@ struct XorShift32 {
 };
 
 struct ChannelPattern {
-    uint16_t hit_positions[MAX_TICKS_PER_BAR];
+    uint16_t hit_positions_bar1[MAX_TICKS_PER_BAR];
+    uint16_t hit_positions_bar2[MAX_TICKS_PER_BAR];
     uint16_t hit_count_bar1;
     uint16_t hit_count_bar2;
     uint8_t timing_variance[MAX_TICKS_PER_BAR / 8];
@@ -118,6 +119,74 @@ inline void handleMidiRealtime(uint8_t byte, MidiClockState& state) {
 
 inline int convertMidiTicksToInternal(int midi_ticks, int internal_ppqn) {
     return midi_ticks * (internal_ppqn / 24);
+}
+
+struct PatternLearner {
+    FuelInjectorState state;
+    int stable_bars_count;
+    int required_stable_bars;
+};
+
+inline void recordHit(ChannelPattern& pattern, int bar_index, int tick_position) {
+    if (tick_position >= 0 && tick_position < MAX_TICKS_PER_BAR) {
+        if (bar_index == 0) {
+            pattern.hit_positions_bar1[tick_position] = 1;
+            pattern.hit_count_bar1++;
+        } else if (bar_index == 1) {
+            pattern.hit_positions_bar2[tick_position] = 1;
+            pattern.hit_count_bar2++;
+        }
+    }
+}
+
+inline float calculatePatternSimilarity(const ChannelPattern& pattern) {
+    if (pattern.hit_count_bar1 == 0 && pattern.hit_count_bar2 == 0) {
+        return 100.0f;
+    }
+    
+    int matching_hits = 0;
+    int total_hits = 0;
+    
+    for (int i = 0; i < MAX_TICKS_PER_BAR; i++) {
+        bool bar1_hit = pattern.hit_positions_bar1[i] > 0;
+        bool bar2_hit = pattern.hit_positions_bar2[i] > 0;
+        
+        if (bar1_hit && bar2_hit) {
+            matching_hits++;
+        }
+        if (bar1_hit || bar2_hit) {
+            total_hits++;
+        }
+    }
+    
+    if (total_hits == 0) {
+        return 100.0f;
+    }
+    
+    return (matching_hits * 100.0f) / total_hits;
+}
+
+inline void updateLearningState(PatternLearner& learner, float similarity) {
+    const float SIMILARITY_THRESHOLD = 90.0f;
+    
+    if (similarity >= SIMILARITY_THRESHOLD) {
+        learner.stable_bars_count++;
+        if (learner.stable_bars_count >= learner.required_stable_bars) {
+            learner.state = LOCKED;
+        }
+    } else {
+        learner.stable_bars_count = 0;
+        learner.state = LEARNING;
+    }
+}
+
+inline void shiftBarsForNewBar(ChannelPattern& pattern) {
+    for (int i = 0; i < MAX_TICKS_PER_BAR; i++) {
+        pattern.hit_positions_bar1[i] = pattern.hit_positions_bar2[i];
+        pattern.hit_positions_bar2[i] = 0;
+    }
+    pattern.hit_count_bar1 = pattern.hit_count_bar2;
+    pattern.hit_count_bar2 = 0;
 }
 
 #endif
