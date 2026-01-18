@@ -415,4 +415,22 @@ inline void applyPermutationInjection(bool* input_pattern, bool* output_pattern,
     }
 }
 
+inline uint8_t selectPolyrhythmType(XorShift32* rng) {
+    uint8_t types[] = {3, 5};
+    uint8_t index = rng->next() % 2;
+    return types[index];
+}
+
+inline void applyPolyrhythmInjection(bool* output_pattern, uint8_t polyrhythm_type, uint16_t ppqn, uint16_t bar_length_qn) {
+    uint16_t bar_length_ticks = ppqn * bar_length_qn;
+    uint16_t spacing = bar_length_ticks / polyrhythm_type;
+    
+    for (uint8_t i = 0; i < polyrhythm_type; i++) {
+        uint16_t position = i * spacing;
+        if (position < MAX_TICKS_PER_BAR) {
+            output_pattern[position] = true;
+        }
+    }
+}
+
 #endif

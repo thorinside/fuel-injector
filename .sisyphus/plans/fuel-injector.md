@@ -595,7 +595,7 @@ Task 15 (Hardware Build & Verification)
 
 ---
 
-- [ ] 11. Implement Injection: Polyrhythmic Overlay
+- [x] 11. Implement Injection: Polyrhythmic Overlay
 
   **What to do**:
   - Overlay secondary subdivision during injection bar
