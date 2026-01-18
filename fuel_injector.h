@@ -71,4 +71,53 @@ struct _FuelInjectorAlgorithm {
     _FuelInjectorAlgorithm() : dtc(nullptr) {}
 };
 
+inline bool detectRisingEdge(float current, float previous, float threshold) {
+    return current > threshold && previous <= threshold;
+}
+
+inline int incrementTick(int current_tick) {
+    return current_tick + 1;
+}
+
+inline int calculateBarPosition(int tick_count, int ppqn, int bar_length_qn) {
+    int ticks_per_bar = ppqn * bar_length_qn;
+    return tick_count % ticks_per_bar;
+}
+
+inline int calculateBarNumber(int tick_count, int ppqn, int bar_length_qn) {
+    int ticks_per_bar = ppqn * bar_length_qn;
+    return tick_count / ticks_per_bar;
+}
+
+inline bool isClockTimeout(int samples_since_clock, int timeout_threshold) {
+    return samples_since_clock >= timeout_threshold;
+}
+
+struct MidiClockState {
+    int midi_tick_count;
+    bool midi_running;
+};
+
+inline void handleMidiRealtime(uint8_t byte, MidiClockState& state) {
+    switch (byte) {
+        case 0xF8:
+            state.midi_tick_count++;
+            break;
+        case 0xFA:
+            state.midi_tick_count = 0;
+            state.midi_running = true;
+            break;
+        case 0xFC:
+            state.midi_running = false;
+            break;
+        case 0xFF:
+            state.midi_tick_count = 0;
+            break;
+    }
+}
+
+inline int convertMidiTicksToInternal(int midi_ticks, int internal_ppqn) {
+    return midi_ticks * (internal_ppqn / 24);
+}
+
 #endif
