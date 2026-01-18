@@ -433,4 +433,25 @@ inline void applyPolyrhythmInjection(bool* output_pattern, uint8_t polyrhythm_ty
     }
 }
 
+inline bool shouldInjectThisBar(uint32_t bar_counter, uint8_t injection_interval) {
+    if (injection_interval == 0) {
+        return false;
+    }
+    return (bar_counter % injection_interval) == 0;
+}
+
+inline bool isBarComplete(uint16_t current_bar_position, uint16_t bar_length_ticks) {
+    return current_bar_position >= (bar_length_ticks - 1);
+}
+
+inline void handleReset(_FuelInjector_DTC* dtc, PatternLearner* learner) {
+    dtc->state = LEARNING;
+    dtc->bar_counter = 0;
+    dtc->current_bar_position = 0;
+    dtc->is_injection_bar = false;
+    
+    learner->state = LEARNING;
+    learner->stable_bars_count = 0;
+}
+
 #endif

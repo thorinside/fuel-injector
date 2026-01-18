@@ -45,3 +45,108 @@
 - Mock distingNT API for testing
 - Add integration tests (separate from unit tests)
 - Establish CI/CD to run tests on commit
+
+---
+
+## Tasks 6-11: Injection Types Implementation (2026-01-18)
+
+### Pattern Discovered
+All injection types follow consistent structure:
+1. Selection function: `select*()` - chooses what to modify based on Fuel/probability
+2. Application function: `apply*()` - performs the actual pattern modification
+3. Both use `shouldApplyInjection(probability, fuel, rng)` for scaling
+
+### Successful Approaches
+
+**Microtiming (Task 6)**:
+- Shift range: PPQN/4 = 1/16 note
+- Collision prevention: minimum 1 tick separation
+- Probability scaling: `(prob * fuel) / 100`
+
+**Omission (Task 7)**:
+- 25% limit: `(hit_count + 3) / 4` for integer rounding
+- Non-downbeat preference: separate candidate pools
+- Remove from pool after selection to avoid duplicates
+
+**Roll (Task 8)**:
+- Beat boundary enforcement: `beat_start = (pos / ppqn) * ppqn; beat_end = beat_start + ppqn`
+- Subdivisions: 2, 3, 4 (double, triplet, ratchet)
+- Tests must use positions that fit within beat boundaries
+
+**Density Burst (Task 9)**:
+- Eighth-note subdivisions: `ppqn / 2`
+- Only subdivide existing beats (no silent beats)
+- Beat detection: check `hit_positions_bar1[i]` at `i % ppqn == 0`
+
+**Permutation (Task 10)**:
+- Fisher-Yates shuffle for permutation generation
+- Eighth-note granularity: `segment_size = ppqn / 2`
+- Copy segments, not individual ticks, for efficiency
+
+**Polyrhythm (Task 11)**:
+- Even spacing: `bar_length_ticks / polyrhythm_type`
+- Types: 3-over-4, 5-over-4 only
+- Simple implementation: just place hits at calculated positions
+
+### Technical Gotchas
+
+**Data Structure Mismatch**:
+- Initial tests used `learned_pattern[]` array (doesn't exist)
+- Actual structure: `hit_positions_bar1[]` with `hit_count_bar1`
+- Pattern uses `uint16_t` arrays, not `bool`
+
+**Beat Boundary Calculations**:
+- Must calculate beat start/end for roll injection
+- Formula: `beat_start = (position / ppqn) * ppqn`
+- Always check both `beat_end` AND `MAX_TICKS_PER_BAR`
+
+**Test Expectations**:
+- Tests must account for boundary enforcement
+- Position 44 with 4 subdivisions at ppqn=48 WILL be cut off
+- Use positions that fit cleanly (0, 48, 96, etc.) for full subdivision tests
+
+### Conventions Discovered
+
+**Function Naming**:
+- Selection: `select*For<InjectionType>()`
+- Application: `apply<InjectionType>Injection()`
+- Utility: `calculate*()`, `generate*()`
+
+**Parameter Order**:
+- Pattern/data first
+- Output buffers next
+- Configuration (fuel, ppqn, etc.) last
+- RNG always passed as pointer
+
+**Test Structure**:
+- One test file per injection type: `test_injection_<type>.cpp`
+- Sections: basic functionality, edge cases, Fuel scaling, boundary checks
+- Always test with Fuel=0 (should produce no effect)
+
+### Build Process
+
+**Makefile Pattern**:
+- Add new test to `TEST_SOURCES` line
+- Format: space-separated list, no line breaks
+- Clean build required after adding new test file
+
+**Compilation**:
+- Warnings for unused variables are acceptable in tests
+- All functions inline in header for testability
+- No separate .cpp implementation file yet
+
+### Test Metrics
+- Task 6: 9 assertions (microtiming)
+- Task 7: 11 assertions (omission)
+- Task 8: 13 assertions (roll)
+- Task 9: 13 assertions (density)
+- Task 10: 215 assertions (permutation)
+- Task 11: 156 assertions (polyrhythm)
+- **Total: 488 assertions in 26 test cases**
+
+### Next Steps
+Tasks 12-15 require integration:
+- Task 12: State machine (depends on all injection types)
+- Task 13: Parameter system
+- Task 14: Custom UI
+- Task 15: Hardware build
