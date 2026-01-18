@@ -347,4 +347,40 @@ inline void applyRollInjection(bool* output_pattern, uint8_t* roll_indices, uint
     }
 }
 
+inline void selectBeatsForDensityBurst(ChannelPattern* pattern, uint8_t* burst_beat_indices, uint8_t* burst_count, uint8_t fuel, XorShift32* rng, uint16_t pattern_length, uint16_t ppqn) {
+    *burst_count = 0;
+    
+    uint8_t beat_count = 0;
+    uint8_t beat_indices[MAX_TICKS_PER_BAR / 48];
+    
+    for (int i = 0; i < pattern_length; i += ppqn) {
+        if (pattern->hit_positions_bar1[i] > 0) {
+            beat_indices[beat_count++] = i / ppqn;
+        }
+    }
+    
+    if (beat_count == 0) {
+        return;
+    }
+    
+    for (uint8_t i = 0; i < beat_count; i++) {
+        if (shouldApplyInjection(100, fuel, *rng)) {
+            burst_beat_indices[*burst_count] = beat_indices[i];
+            (*burst_count)++;
+        }
+    }
+}
+
+inline void applyDensityBurstInjection(bool* output_pattern, uint8_t* burst_beat_indices, uint8_t burst_count, uint16_t ppqn) {
+    for (uint8_t i = 0; i < burst_count; i++) {
+        uint16_t beat_start = burst_beat_indices[i] * ppqn;
+        uint16_t eighth_note_offset = ppqn / 2;
+        uint16_t subdivision_pos = beat_start + eighth_note_offset;
+        
+        if (subdivision_pos < MAX_TICKS_PER_BAR) {
+            output_pattern[subdivision_pos] = true;
+        }
+    }
+}
+
 #endif

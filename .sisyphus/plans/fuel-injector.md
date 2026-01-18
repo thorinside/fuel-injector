@@ -529,7 +529,7 @@ Task 15 (Hardware Build & Verification)
 
 ---
 
-- [ ] 9. Implement Injection: Density Burst
+- [x] 9. Implement Injection: Density Burst
 
   **What to do**:
   - Temporarily increase trigger density during injection bar
