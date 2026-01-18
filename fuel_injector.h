@@ -252,4 +252,53 @@ inline bool shouldApplyInjection(uint8_t probability, uint8_t fuel, XorShift32& 
     return random_value < scaled_probability;
 }
 
+inline void selectHitsForOmission(ChannelPattern* pattern, uint8_t* omit_indices, uint8_t* omit_count, uint8_t fuel, XorShift32* rng, uint16_t pattern_length) {
+    *omit_count = 0;
+    
+    uint8_t hit_count = 0;
+    uint16_t hit_positions[MAX_TICKS_PER_BAR];
+    uint16_t non_downbeat_positions[MAX_TICKS_PER_BAR];
+    uint8_t non_downbeat_count = 0;
+    
+    for (int i = 0; i < pattern_length; i++) {
+        if (pattern->hit_positions_bar1[i] > 0) {
+            hit_positions[hit_count++] = i;
+            if (i != 0) {
+                non_downbeat_positions[non_downbeat_count++] = i;
+            }
+        }
+    }
+    
+    if (hit_count == 0) {
+        return;
+    }
+    
+    uint8_t max_omissions = (hit_count + 3) / 4;
+    if (max_omissions == 0) {
+        return;
+    }
+    
+    uint16_t* candidate_pool = non_downbeat_count > 0 ? non_downbeat_positions : hit_positions;
+    uint8_t pool_size = non_downbeat_count > 0 ? non_downbeat_count : hit_count;
+    
+    for (uint8_t i = 0; i < max_omissions && i < pool_size; i++) {
+        if (shouldApplyInjection(100, fuel, *rng)) {
+            uint8_t random_index = rng->next() % pool_size;
+            omit_indices[*omit_count] = candidate_pool[random_index];
+            (*omit_count)++;
+            
+            for (uint8_t j = random_index; j < pool_size - 1; j++) {
+                candidate_pool[j] = candidate_pool[j + 1];
+            }
+            pool_size--;
+        }
+    }
+}
+
+inline void applyOmissionInjection(bool* output_pattern, uint8_t* omit_indices, uint8_t omit_count) {
+    for (uint8_t i = 0; i < omit_count; i++) {
+        output_pattern[omit_indices[i]] = false;
+    }
+}
+
 #endif
