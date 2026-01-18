@@ -189,4 +189,35 @@ inline void shiftBarsForNewBar(ChannelPattern& pattern) {
     pattern.hit_count_bar2 = 0;
 }
 
+inline bool detectPatternChange(const ChannelPattern& learned, const ChannelPattern& incoming) {
+    const float CHANGE_THRESHOLD = 90.0f;
+    
+    int matching_hits = 0;
+    int total_hits = 0;
+    
+    for (int i = 0; i < MAX_TICKS_PER_BAR; i++) {
+        bool learned_hit = learned.hit_positions_bar1[i] > 0;
+        bool incoming_hit = incoming.hit_positions_bar1[i] > 0;
+        
+        if (learned_hit && incoming_hit) {
+            matching_hits++;
+        }
+        if (learned_hit || incoming_hit) {
+            total_hits++;
+        }
+    }
+    
+    if (total_hits == 0) {
+        return false;
+    }
+    
+    float similarity = (matching_hits * 100.0f) / total_hits;
+    return similarity < CHANGE_THRESHOLD;
+}
+
+inline void handlePatternChange(PatternLearner& learner) {
+    learner.state = LEARNING;
+    learner.stable_bars_count = 0;
+}
+
 #endif
