@@ -1,6 +1,6 @@
 PLUGIN_NAME = fuel_injector
 SOURCES = fuel_injector.cpp
-TEST_SOURCES = tests/test_main.cpp tests/test_example.cpp
+TEST_SOURCES = tests/test_main.cpp tests/test_example.cpp tests/test_data_structures.cpp
 TEST_RUNNER = tests/test_runner
 
 UNAME_S := $(shell uname -s)
