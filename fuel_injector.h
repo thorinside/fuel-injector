@@ -220,4 +220,36 @@ inline void handlePatternChange(PatternLearner& learner) {
     learner.stable_bars_count = 0;
 }
 
+inline int calculateMicrotimingRange(int ppqn) {
+    return ppqn / 4;
+}
+
+inline int applyMicrotimingShift(int position, int shift, int adjacent_position) {
+    int new_position = position + shift;
+    
+    if (new_position == adjacent_position) {
+        if (shift > 0) {
+            new_position = adjacent_position + 1;
+        } else {
+            new_position = adjacent_position - 1;
+        }
+    }
+    
+    if (new_position < 0) new_position = 0;
+    if (new_position >= MAX_TICKS_PER_BAR) new_position = MAX_TICKS_PER_BAR - 1;
+    
+    return new_position;
+}
+
+inline bool shouldApplyInjection(uint8_t probability, uint8_t fuel, XorShift32& rng) {
+    if (fuel == 0 || probability == 0) {
+        return false;
+    }
+    
+    int scaled_probability = (probability * fuel) / 100;
+    int random_value = rng.next() % 100;
+    
+    return random_value < scaled_probability;
+}
+
 #endif
