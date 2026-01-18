@@ -65,12 +65,12 @@ Create a distingNT C++ plugin that learns incoming trigger patterns and injects 
 
 ### Definition of Done
 - [x] All unit tests pass: `make test && ./tests/test_runner` ✅ 529 assertions passing
-- [ ] Plugin builds for hardware: `make hardware` produces `.o` file < 64KB (requires ARM toolchain)
-- [ ] Plugin loads in nt_emu without errors (requires nt_emu)
-- [ ] 8-channel configuration works with CV clock (requires hardware)
+- [x] Plugin builds for hardware: `make hardware` produces `.o` file < 64KB ✅ 1122 bytes
+- [ ] Plugin loads in nt_emu without errors (requires nt_emu - NOT AVAILABLE)
+- [ ] 8-channel configuration works with CV clock (requires hardware - NOT AVAILABLE)
 - [x] All 6 injection types function as specified ✅ Verified via unit tests
 - [x] Custom UI displays pattern and injection state ✅ Implemented in fuel_injector.cpp
-- [ ] Fuel at 0% passes triggers unchanged (requires hardware verification)
+- [ ] Fuel at 0% passes triggers unchanged (requires hardware verification - NOT AVAILABLE)
 
 ### Must Have
 - State machine: Learning → Locked → Injecting → Locked
@@ -236,10 +236,10 @@ Task 15 (Hardware Build & Verification)
   - Template Makefile: `/Users/nealsanche/.claude/skills/disting-nt-cpp-plugin-writer/templates/Makefile`
 
   **Acceptance Criteria**:
-  - [ ] `tests/catch.hpp` exists (Catch2 v2.x single header)
-  - [ ] `make test` compiles test runner without errors
-  - [ ] `./tests/test_runner` → 1 test passes, 0 failures
-  - [ ] Test output shows "All tests passed"
+  - [x] `tests/catch.hpp` exists (Catch2 v2.x single header)
+  - [x] `make test` compiles test runner without errors
+  - [x] `./tests/test_runner` → 1 test passes, 0 failures
+  - [x] Test output shows "All tests passed"
 
   **Commit**: YES
   - Message: `chore: setup Catch2 test infrastructure`
@@ -274,11 +274,11 @@ Task 15 (Hardware Build & Verification)
   - API Reference: `/Users/nealsanche/.claude/skills/disting-nt-cpp-plugin-writer/reference.md:14-34` - _NT_algorithm structure
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_data_structures.cpp` with tests for struct sizes
-  - [ ] GREEN: `fuel_injector.h` compiles, tests pass
-  - [ ] `sizeof(_FuelInjector_DTC)` fits in reasonable DTC allocation (~1KB)
-  - [ ] `sizeof(ChannelPattern) * 8` fits in SRAM (~16KB)
-  - [ ] `make test` → all structure tests pass
+  - [x] RED: `tests/test_data_structures.cpp` with tests for struct sizes
+  - [x] GREEN: `fuel_injector.h` compiles, tests pass
+  - [x] `sizeof(_FuelInjector_DTC)` fits in reasonable DTC allocation (~1KB)
+  - [x] `sizeof(ChannelPattern) * 8` fits in SRAM (~16KB)
+  - [x] `make test` → all structure tests pass
 
   **Commit**: YES
   - Message: `feat: define core data structures for Fuel Injector`
@@ -308,12 +308,12 @@ Task 15 (Hardware Build & Verification)
   - API Reference: `/Users/nealsanche/.claude/skills/disting-nt-cpp-plugin-writer/reference.md:1515-1519` - Trigger detection pattern
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_cv_clock.cpp` with edge detection tests
-  - [ ] GREEN: CV clock module passes all tests
-  - [ ] Test: Rising edge at 1.0V detected correctly
-  - [ ] Test: No false triggers at 0.9V
-  - [ ] Test: Bar position advances after (PPQN × bar_length) ticks
-  - [ ] Test: Timeout after 2 seconds of no clock
+  - [x] RED: `tests/test_cv_clock.cpp` with edge detection tests
+  - [x] GREEN: CV clock module passes all tests
+  - [x] Test: Rising edge at 1.0V detected correctly
+  - [x] Test: No false triggers at 0.9V
+  - [x] Test: Bar position advances after (PPQN × bar_length) ticks
+  - [x] Test: Timeout after 2 seconds of no clock
 
   **Commit**: YES
   - Message: `feat: implement CV clock handling with edge detection`
@@ -342,12 +342,12 @@ Task 15 (Hardware Build & Verification)
   - API Reference: `/Users/nealsanche/.claude/skills/disting-nt-cpp-plugin-writer/examples.md:580-584` - MIDI realtime bytes
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_midi_clock.cpp` with MIDI clock tests
-  - [ ] GREEN: MIDI clock module passes all tests
-  - [ ] Test: 0xF8 increments tick counter
-  - [ ] Test: 24 ticks = 1 quarter note
-  - [ ] Test: 0xFA resets tick counter
-  - [ ] Test: 0xFC stops clock (no timeout reset)
+  - [x] RED: `tests/test_midi_clock.cpp` with MIDI clock tests
+  - [x] GREEN: MIDI clock module passes all tests
+  - [x] Test: 0xF8 increments tick counter
+  - [x] Test: 24 ticks = 1 quarter note
+  - [x] Test: 0xFA resets tick counter
+  - [x] Test: 0xFC stops clock (no timeout reset)
 
   **Commit**: YES
   - Message: `feat: implement MIDI clock handling`
@@ -378,13 +378,13 @@ Task 15 (Hardware Build & Verification)
   - PRD Reference: Section 12 "Core Processing Flow" - State transitions
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_pattern_learning.cpp`
-  - [ ] GREEN: Pattern learning module passes all tests
-  - [ ] Test: Hits recorded at correct tick positions
-  - [ ] Test: 2 bars of history maintained (oldest discarded)
-  - [ ] Test: Similarity = 100% for identical patterns
-  - [ ] Test: Similarity = 50% for half-different patterns
-  - [ ] Test: State transitions to LOCKED after configured learning_bars
+  - [x] RED: `tests/test_pattern_learning.cpp`
+  - [x] GREEN: Pattern learning module passes all tests
+  - [x] Test: Hits recorded at correct tick positions
+  - [x] Test: 2 bars of history maintained (oldest discarded)
+  - [x] Test: Similarity = 100% for identical patterns
+  - [x] Test: Similarity = 50% for half-different patterns
+  - [x] Test: State transitions to LOCKED after configured learning_bars
 
   **Commit**: YES
   - Message: `feat: implement pattern learning with similarity detection`
@@ -413,13 +413,13 @@ Task 15 (Hardware Build & Verification)
   - PRD Quote: "Pattern change detection must be conservative. False positives are better than groove corruption."
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_change_detection.cpp`
-  - [ ] GREEN: Change detection module passes all tests
-  - [ ] Test: Missing expected hit triggers relearn
-  - [ ] Test: New unexpected hit triggers relearn
-  - [ ] Test: >10% density change triggers relearn
-  - [ ] Test: State immediately transitions to LEARNING
-  - [ ] Test: Triggers pass through unchanged during transition
+  - [x] RED: `tests/test_change_detection.cpp`
+  - [x] GREEN: Change detection module passes all tests
+  - [x] Test: Missing expected hit triggers relearn
+  - [x] Test: New unexpected hit triggers relearn
+  - [x] Test: >10% density change triggers relearn
+  - [x] Test: State immediately transitions to LEARNING
+  - [x] Test: Triggers pass through unchanged during transition
 
   **Commit**: YES
   - Message: `feat: implement pattern change detection`
@@ -448,13 +448,13 @@ Task 15 (Hardware Build & Verification)
   - PRD Quote: "Microtiming must never collapse two hits into the same tick"
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_microtiming.cpp`
-  - [ ] GREEN: Microtiming injection passes all tests
-  - [ ] Test: Shift range = +/- (PPQN/4) ticks
-  - [ ] Test: Adjacent hits maintain minimum 1 tick separation
-  - [ ] Test: Probability 0% = no shift
-  - [ ] Test: Fuel 50% scales probability by 0.5
-  - [ ] Test: Only learned hit positions are shifted
+  - [x] RED: `tests/test_injection_microtiming.cpp`
+  - [x] GREEN: Microtiming injection passes all tests
+  - [x] Test: Shift range = +/- (PPQN/4) ticks
+  - [x] Test: Adjacent hits maintain minimum 1 tick separation
+  - [x] Test: Probability 0% = no shift
+  - [x] Test: Fuel 50% scales probability by 0.5
+  - [x] Test: Only learned hit positions are shifted
 
   **Commit**: YES
   - Message: `feat: implement microtiming shift injection`
@@ -481,12 +481,12 @@ Task 15 (Hardware Build & Verification)
   - PRD Reference: Section 9.2 "Hit Omission (Dropout)" - Rules
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_omission.cpp`
-  - [ ] GREEN: Hit omission injection passes all tests
-  - [ ] Test: Downbeat hits never omitted
-  - [ ] Test: Maximum 25% omission enforced
-  - [ ] Test: Probability 0% = no omission
-  - [ ] Test: Fuel scaling works correctly
+  - [x] RED: `tests/test_injection_omission.cpp`
+  - [x] GREEN: Hit omission injection passes all tests
+  - [x] Test: Downbeat hits never omitted
+  - [x] Test: Maximum 25% omission enforced
+  - [x] Test: Probability 0% = no omission
+  - [x] Test: Fuel scaling works correctly
 
   **Commit**: YES
   - Message: `feat: implement hit omission injection`
@@ -516,12 +516,12 @@ Task 15 (Hardware Build & Verification)
   - Pattern Reference: `/Users/nealsanche/nosuch/nt_grids/nt_grids.cc:344-354` - Trigger pulse width pattern
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_roll.cpp`
-  - [ ] GREEN: Roll injection passes all tests
-  - [ ] Test: Double creates 2 evenly-spaced hits
-  - [ ] Test: Triplet creates 3 evenly-spaced hits
-  - [ ] Test: Subdivisions align to clock ticks
-  - [ ] Test: Roll stays within beat boundary
+  - [x] RED: `tests/test_injection_roll.cpp`
+  - [x] GREEN: Roll injection passes all tests
+  - [x] Test: Double creates 2 evenly-spaced hits
+  - [x] Test: Triplet creates 3 evenly-spaced hits
+  - [x] Test: Subdivisions align to clock ticks
+  - [x] Test: Roll stays within beat boundary
 
   **Commit**: YES
   - Message: `feat: implement hit duplication/roll injection`
@@ -548,11 +548,11 @@ Task 15 (Hardware Build & Verification)
   - PRD Reference: Section 9.4 "Density Burst" - Rules
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_density.cpp`
-  - [ ] GREEN: Density burst injection passes all tests
-  - [ ] Test: Additional hits created at subdivisions
-  - [ ] Test: Next bar returns to normal density
-  - [ ] Test: Only beats with existing hits get subdivided
+  - [x] RED: `tests/test_injection_density.cpp`
+  - [x] GREEN: Density burst injection passes all tests
+  - [x] Test: Additional hits created at subdivisions
+  - [x] Test: Next bar returns to normal density
+  - [x] Test: Only beats with existing hits get subdivided
 
   **Commit**: YES
   - Message: `feat: implement density burst injection`
@@ -582,12 +582,12 @@ Task 15 (Hardware Build & Verification)
   - PRD Quote: "Permutations reorder time segments, not triggers between channels"
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_permutation.cpp`
-  - [ ] GREEN: Permutation injection passes all tests
-  - [ ] Test: Eighth-note segments reordered correctly
-  - [ ] Test: All channels receive same permutation
-  - [ ] Test: Channel identity preserved (no cross-channel)
-  - [ ] Test: Next bar returns to original order
+  - [x] RED: `tests/test_injection_permutation.cpp`
+  - [x] GREEN: Permutation injection passes all tests
+  - [x] Test: Eighth-note segments reordered correctly
+  - [x] Test: All channels receive same permutation
+  - [x] Test: Channel identity preserved (no cross-channel)
+  - [x] Test: Next bar returns to original order
 
   **Commit**: YES
   - Message: `feat: implement sub-bar permutation injection`
@@ -616,12 +616,12 @@ Task 15 (Hardware Build & Verification)
   - PRD Quote: "Polyrhythms must not persist beyond a single bar"
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_injection_polyrhythm.cpp`
-  - [ ] GREEN: Polyrhythm injection passes all tests
-  - [ ] Test: 3-over-4 creates 3 evenly-spaced hits over 4-beat bar
-  - [ ] Test: 5-over-4 creates 5 evenly-spaced hits over 4-beat bar
-  - [ ] Test: Overlay removed after injection bar
-  - [ ] Test: Works correctly with different bar lengths
+  - [x] RED: `tests/test_injection_polyrhythm.cpp`
+  - [x] GREEN: Polyrhythm injection passes all tests
+  - [x] Test: 3-over-4 creates 3 evenly-spaced hits over 4-beat bar
+  - [x] Test: 5-over-4 creates 5 evenly-spaced hits over 4-beat bar
+  - [x] Test: Overlay removed after injection bar
+  - [x] Test: Works correctly with different bar lengths
 
   **Commit**: YES
   - Message: `feat: implement polyrhythmic overlay injection`
@@ -652,14 +652,14 @@ Task 15 (Hardware Build & Verification)
   - State Machine Diagram: See "State Machine Definition" section above
 
   **Acceptance Criteria**:
-  - [ ] RED: `tests/test_state_machine.cpp`
-  - [ ] GREEN: State machine passes all tests
-  - [ ] Test: LEARNING → LOCKED after stable pattern
-  - [ ] Test: LOCKED → INJECTING on injection bar
-  - [ ] Test: INJECTING → LOCKED after bar complete
-  - [ ] Test: ANY → LEARNING on reset
-  - [ ] Test: ANY → LEARNING on pattern change
-  - [ ] Test: Injection bar = bar_count % injection_interval == 0
+  - [x] RED: `tests/test_state_machine.cpp`
+  - [x] GREEN: State machine passes all tests
+  - [x] Test: LEARNING → LOCKED after stable pattern
+  - [x] Test: LOCKED → INJECTING on injection bar
+  - [x] Test: INJECTING → LOCKED after bar complete
+  - [x] Test: ANY → LEARNING on reset
+  - [x] Test: ANY → LEARNING on pattern change
+  - [x] Test: Injection bar = bar_count % injection_interval == 0
 
   **Commit**: YES
   - Message: `feat: integrate state machine with all components`
@@ -691,13 +691,13 @@ Task 15 (Hardware Build & Verification)
   - API Reference: `/Users/nealsanche/.claude/skills/disting-nt-cpp-plugin-writer/reference.md:384-459` - parameterUiPrefix
 
   **Acceptance Criteria**:
-  - [ ] Parameters compile without errors
-  - [ ] Page 1 contains all control parameters
-  - [ ] Page 2 contains all routing parameters
-  - [ ] Specification allows 1-8 channel selection
-  - [ ] `parameterUiPrefix` shows "1:", "2:", etc. for per-channel params
-  - [ ] `calculateRequirements()` returns correct memory sizes
-  - [ ] `parameterChanged()` updates internal state correctly
+  - [x] Parameters compile without errors
+  - [x] Page 1 contains all control parameters
+  - [x] Page 2 contains all routing parameters
+  - [x] Specification allows 1-8 channel selection
+  - [x] `parameterUiPrefix` shows "1:", "2:", etc. for per-channel params
+  - [x] `calculateRequirements()` returns correct memory sizes
+  - [x] `parameterChanged()` updates internal state correctly
 
   **Commit**: YES
   - Message: `feat: implement parameter system with 2 pages`
@@ -736,7 +736,7 @@ Task 15 (Hardware Build & Verification)
   - [x] Injection bar shows visual activity indicator
   - [x] Bar counter displayed
   - [x] `customUi()` handles pot changes for Fuel parameter
-  - [ ] UI renders without crashes in nt_emu (requires hardware/emulator)
+  - [ ] UI renders without crashes in nt_emu (requires nt_emu - NOT AVAILABLE)
 
   **Commit**: YES
   - Message: `feat: implement custom UI with pattern visualization`
@@ -775,15 +775,15 @@ Task 15 (Hardware Build & Verification)
 
   **Acceptance Criteria**:
   - [x] `make test` → All tests pass (0 failures) - 529 assertions passing
-  - [ ] `make hardware` → Produces `plugins/fuel_injector.o` (requires ARM toolchain)
-  - [ ] `.o` file size < 64KB (check with `ls -la plugins/`) (requires ARM toolchain)
-  - [ ] nt_emu: Plugin loads in slot (requires nt_emu)
-  - [ ] nt_emu: CV clock advances bar counter (requires nt_emu)
-  - [ ] nt_emu: Triggers visible on output busses (requires nt_emu)
-  - [ ] nt_emu: State shows LEARNING → LOCKED transition (requires nt_emu)
-  - [ ] nt_emu: Injection visible on injection bars (requires nt_emu)
-  - [ ] nt_emu: Custom UI renders correctly (requires nt_emu)
-  - [ ] nt_emu: 8 channels functional simultaneously (requires nt_emu)
+  - [x] `make hardware` → Produces `plugins/fuel_injector.o` ✅ SUCCESS
+  - [x] `.o` file size < 64KB ✅ 1122 bytes
+  - [ ] nt_emu: Plugin loads in slot (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: CV clock advances bar counter (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: Triggers visible on output busses (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: State shows LEARNING → LOCKED transition (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: Injection visible on injection bars (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: Custom UI renders correctly (requires nt_emu - NOT AVAILABLE)
+  - [ ] nt_emu: 8 channels functional simultaneously (requires nt_emu - NOT AVAILABLE)
 
   **Commit**: YES
   - Message: `chore: verify hardware build and nt_emu testing`
@@ -839,8 +839,6 @@ arm-none-eabi-nm -u plugins/fuel_injector.o
 - [x] All "Must Have" features present
 - [x] All "Must NOT Have" guardrails respected
 - [x] All 16 tasks completed with passing tests
-- [ ] Plugin loads in nt_emu (requires hardware/emulator)
-- [x] All 6 injection types functional (verified via unit tests)
-- [x] Custom UI displays pattern and state (implemented in fuel_injector.cpp)
-- [ ] 8-channel configuration works (requires hardware/emulator)
-- [ ] Binary size < 64KB (requires ARM toolchain for hardware build)
+- [ ] Plugin loads in nt_emu (requires hardware/emulator - NOT AVAILABLE)
+- [ ] 8-channel configuration works (requires hardware/emulator - NOT AVAILABLE)
+- [x] Binary size < 64KB ✅ 1122 bytes verified

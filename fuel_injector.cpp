@@ -1,12 +1,19 @@
-#include <distingnt/api.h>
+#include "distingnt/api.h"
+#include <cstring>
+#include <new>
 #include "fuel_injector.h"
 
+// Define GUID for this algorithm
+#define FUEL_INJECTOR_GUID NT_MULTICHAR('F', 'u', 'I', 'n')
+
+// Specifications
 enum { kSpecChannels };
 
 static const _NT_specification specifications[] = {
     { .name = "Channels", .min = 1, .max = MAX_CHANNELS, .def = 4, .type = kNT_typeGeneric },
 };
 
+// Parameter indices
 enum {
     kParamFuel,
     kParamPPQN,
@@ -19,21 +26,17 @@ enum {
     kParamProbDensity,
     kParamProbPermutation,
     kParamProbPolyrhythm,
-    kNumControlParams,
-};
-
-enum {
     kParamClockSource,
     kParamClockInput,
     kParamResetInput,
-    kParamTriggerIn = 0,
-    kParamTriggerOut,
-    kParamsPerChannel,
+    // Per-channel parameters follow
+    kNumBaseParams
 };
 
 static const char* clockSourceStrings[] = { "CV", "MIDI", NULL };
 
-static const _NT_parameter controlParameters[] = {
+// Parameter definitions
+static const _NT_parameter s_parameters[] = {
     { .name = "Fuel", .min = 0, .max = 100, .def = 100, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
     { .name = "PPQN", .min = 24, .max = 96, .def = 48, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
     { .name = "Bar Length", .min = 1, .max = 8, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
@@ -45,108 +48,216 @@ static const _NT_parameter controlParameters[] = {
     { .name = "P:Density", .min = 0, .max = 100, .def = 35, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
     { .name = "P:Permutation", .min = 0, .max = 100, .def = 25, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
     { .name = "P:Polyrhythm", .min = 0, .max = 100, .def = 20, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
+    { .name = "Clock Source", .min = 0, .max = 1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = clockSourceStrings },
+    NT_PARAMETER_CV_INPUT("Clock Input", 0, 1)
+    NT_PARAMETER_CV_INPUT("Reset Input", 0, 2)
 };
 
-static const _NT_parameter routingParamTemplate[] = {
-    { .name = "Trigger In", .min = 1, .max = 16, .def = 1, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-    { .name = "Trigger Out", .min = 1, .max = 16, .def = 1, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
-};
-
-static const uint8_t pageControl[] = {
+// Parameter pages
+static const uint8_t s_page_control[] = {
     kParamFuel, kParamPPQN, kParamBarLength, kParamInjectionInterval, kParamLearningBars,
     kParamProbMicrotiming, kParamProbOmission, kParamProbRoll,
     kParamProbDensity, kParamProbPermutation, kParamProbPolyrhythm
 };
 
-static void calculateRequirements(_NT_algorithmRequirements& req, const int32_t* specs) {
-    int ch = specs ? specs[kSpecChannels] : 4;
-    int np = kNumControlParams + 3 + ch * kParamsPerChannel;
-    int npg = 2;
+static const uint8_t s_page_routing[] = {
+    kParamClockSource, kParamClockInput, kParamResetInput
+};
+
+static const _NT_parameterPage s_pages[] = {
+    { .name = "Control", .numParams = ARRAY_SIZE(s_page_control), .params = s_page_control },
+    { .name = "Routing", .numParams = ARRAY_SIZE(s_page_routing), .params = s_page_routing },
+};
+
+static const _NT_parameterPages parameterPages = {
+    .numPages = ARRAY_SIZE(s_pages),
+    .pages = s_pages,
+};
+
+// Static requirements (shared memory)
+static void fuel_injector_calculate_static_requirements(_NT_staticRequirements& req) {
+    req.dram = 0;
+}
+
+// Initialize shared data
+static void fuel_injector_initialise(_NT_staticMemoryPtrs& ptrs, const _NT_staticRequirements& req) {
+    // No shared initialization needed
+}
+
+// Calculate per-instance requirements
+static void fuel_injector_calculate_requirements(_NT_algorithmRequirements& req, const int32_t* specifications) {
+    int numChannels = specifications ? specifications[kSpecChannels] : 4;
     
-    req.numParameters = np;
-    req.sram = sizeof(_FuelInjectorAlgorithm) + 
-               np * sizeof(_NT_parameter) + 
-               npg * sizeof(_NT_parameterPage) + 
-               ch * MAX_CHANNELS;
+    req.numParameters = kNumBaseParams;
+    req.sram = sizeof(_FuelInjectorAlgorithm);
+    req.dram = 0;
     req.dtc = sizeof(_FuelInjector_DTC);
-    req.flash = 0;
+    req.itc = 0;
 }
 
-static _NT_algorithm* create(const int32_t* specs) {
-    int numChannels = specs ? specs[kSpecChannels] : 4;
+// Construct algorithm instance
+static _NT_algorithm* fuel_injector_construct(const _NT_algorithmMemoryPtrs& ptrs, const _NT_algorithmRequirements& req, const int32_t* specifications) {
+    // Use placement new to construct algorithm in provided SRAM
+    _FuelInjectorAlgorithm* alg = new (ptrs.sram) _FuelInjectorAlgorithm();
     
-    _FuelInjectorAlgorithm* p = new _FuelInjectorAlgorithm();
-    if (!p) return NULL;
+    // Initialize inherited members
+    alg->parameters = s_parameters;
+    alg->parameterPages = &parameterPages;
     
-    return p;
+    // Initialize DTC (hot state)
+    if (ptrs.dtc) {
+        alg->dtc = (_FuelInjector_DTC*)ptrs.dtc;
+        alg->dtc->state = LEARNING;
+        alg->dtc->bar_counter = 0;
+        alg->dtc->current_bar_position = 0;
+        alg->dtc->clock_tick_counter = 0;
+        alg->dtc->prev_clock_value = 0.0f;
+        alg->dtc->prev_reset_value = 0.0f;
+    }
+    
+    return reinterpret_cast<_NT_algorithm*>(alg);
 }
 
-static void destroy(_NT_algorithm* p) {
-    delete (_FuelInjectorAlgorithm*)p;
-}
-
-static void parameterChanged(_NT_algorithm* alg, int index, int32_t value) {
-    _FuelInjectorAlgorithm* p = (_FuelInjectorAlgorithm*)alg;
+// Parameter changed callback
+static void fuel_injector_parameter_changed(_NT_algorithm* self_base, int p_idx) {
+    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
     
-    if (index == kParamFuel) {
-    } else if (index == kParamPPQN) {
-    } else if (index == kParamBarLength) {
-    } else if (index == kParamInjectionInterval) {
-    } else if (index == kParamLearningBars) {
+    // Handle parameter changes
+    switch (p_idx) {
+        case kParamFuel:
+        case kParamPPQN:
+        case kParamBarLength:
+        case kParamInjectionInterval:
+        case kParamLearningBars:
+            // Parameters are already in self->v[], no additional processing needed for now
+            break;
     }
 }
 
-static void reset(_NT_algorithm* alg) {
-    _FuelInjectorAlgorithm* p = (_FuelInjectorAlgorithm*)alg;
-    if (p->dtc) {
-        p->dtc->state = LEARNING;
-        p->dtc->bar_counter = 0;
-        p->dtc->current_bar_position = 0;
+// Main audio processing callback
+static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int numFramesBy4) {
+    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
+    
+    // TODO: Implement actual processing
+    // For now, just pass through
+    int numFrames = numFramesBy4 * 4;
+    
+    // Process clock input
+    int clockBus = self->v[kParamClockInput] - 1;
+    int resetBus = self->v[kParamResetInput] - 1;
+    
+    for (int frame = 0; frame < numFrames; frame++) {
+        // Clock detection (CV mode)
+        if (self->v[kParamClockSource] == 0) {  // CV
+            float clockValue = busFrames[clockBus * numFrames + frame];
+            
+            // Rising edge detection at 1.0V threshold
+            if (clockValue >= 1.0f && self->dtc->prev_clock_value < 1.0f) {
+                // Clock tick detected
+                self->dtc->clock_tick_counter++;
+                
+                // Calculate bar position
+                int ppqn = self->v[kParamPPQN];
+                int barLength = self->v[kParamBarLength];
+                int ticksPerBar = ppqn * barLength;
+                
+                if (self->dtc->clock_tick_counter >= ticksPerBar) {
+                    self->dtc->clock_tick_counter = 0;
+                    self->dtc->bar_counter++;
+                }
+                
+                self->dtc->current_bar_position = self->dtc->clock_tick_counter;
+            }
+            
+            self->dtc->prev_clock_value = clockValue;
+        }
+        
+        // Reset detection
+        float resetValue = busFrames[resetBus * numFrames + frame];
+        if (resetValue >= 1.0f && self->dtc->prev_reset_value < 1.0f) {
+            // Reset triggered
+            self->dtc->state = LEARNING;
+            self->dtc->bar_counter = 0;
+            self->dtc->current_bar_position = 0;
+            self->dtc->clock_tick_counter = 0;
+        }
+        self->dtc->prev_reset_value = resetValue;
     }
 }
 
-static void process(_NT_algorithm* alg, _NT_algorithmState* state) {
-}
-
-static bool hasCustomUi(_NT_algorithm* alg) {
+// Custom UI check
+static bool fuel_injector_has_custom_ui(_NT_algorithm* self_base) {
     return true;
 }
 
-static void setupUi(_NT_algorithm* alg, _NT_customUiSetup* setup) {
-    setup->numPots = 1;
-    setup->pots[0].parameter = kParamFuel;
-    setup->pots[0].min = 0;
-    setup->pots[0].max = 100;
-}
-
-static void customUi(_NT_algorithm* alg, _NT_customUiState* state) {
-}
-
-static void draw(_NT_algorithm* alg, _NT_displayBuffer* display) {
-    _FuelInjectorAlgorithm* p = (_FuelInjectorAlgorithm*)alg;
+// Setup UI pots
+static void fuel_injector_setup_ui(_NT_algorithm* self_base, _NT_float3& pots) {
+    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
     
+    // Map pot to Fuel parameter (0-100 -> 0.0-1.0)
+    pots[0] = self->v[kParamFuel] / 100.0f;
+    pots[1] = 0.0f;
+    pots[2] = 0.0f;
+}
+
+// Custom UI handling
+static void fuel_injector_custom_ui(_NT_algorithm* self_base, const _NT_uiData& data) {
+    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
+    
+    // TODO: Implement custom UI controls
+}
+
+// Draw custom display
+static bool fuel_injector_draw(_NT_algorithm* self_base) {
+    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
+    
+    // Determine state text
     const char* state_text = "LEARNING";
-    if (p->dtc) {
-        if (p->dtc->state == LOCKED) {
+    if (self->dtc) {
+        if (self->dtc->state == LOCKED) {
             state_text = "LOCKED";
-        } else if (p->dtc->state == INJECTING) {
+        } else if (self->dtc->state == INJECTING) {
             state_text = "INJECTING";
         }
     }
+    
+    // Draw state (using platform adapter would require access to it)
+    // For now, return false to show standard parameter display
+    return false;
 }
 
-_NT_PLUGIN_EXPORT const _NT_pluginInfo NT_PLUGIN_INFO = {
-    .apiVersion = NT_API_VERSION,
-    .guid = "FuIn",
+// Factory definition
+static const _NT_factory s_fuel_injector_factory = {
+    .guid = FUEL_INJECTOR_GUID,
     .name = "Fuel Injector",
     .description = "Multi-channel trigger processor with pattern learning and injection",
-    .author = "Neal Sanche",
-    .specifications = specifications,
     .numSpecifications = ARRAY_SIZE(specifications),
-    .calculateRequirements = calculateRequirements,
-    .create = create,
-    .destroy = destroy,
-    .reset = reset,
-    .process = process,
-    .parameterChanged = parameterChanged,
+    .specifications = specifications,
+    .calculateStaticRequirements = fuel_injector_calculate_static_requirements,
+    .initialise = fuel_injector_initialise,
+    .calculateRequirements = fuel_injector_calculate_requirements,
+    .construct = fuel_injector_construct,
+    .parameterChanged = fuel_injector_parameter_changed,
+    .step = fuel_injector_step,
+    .draw = fuel_injector_draw,
+    .midiRealtime = NULL,
+    .midiMessage = NULL,
+    .tags = kNT_tagUtility,
+    .hasCustomUi = fuel_injector_has_custom_ui,
+    .customUi = fuel_injector_custom_ui,
+    .setupUi = fuel_injector_setup_ui
 };
+
+// Plugin entry point
+extern "C" uintptr_t pluginEntry(_NT_selector selector, uint32_t data) {
+    switch (selector) {
+        case kNT_selector_version:
+            return kNT_apiVersionCurrent;
+        case kNT_selector_numFactories:
+            return 1;
+        case kNT_selector_factoryInfo:
+            return (data == 0) ? reinterpret_cast<uintptr_t>(&s_fuel_injector_factory) : 0;
+        default:
+            return 0;
+    }
+}

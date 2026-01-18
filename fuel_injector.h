@@ -3,6 +3,10 @@
 
 #include <cstdint>
 
+#ifdef __arm__
+#include "distingnt/api.h"
+#endif
+
 constexpr int MAX_CHANNELS = 8;
 constexpr int MAX_PPQN = 48;
 constexpr int MAX_TICKS_PER_BAR = 336;
@@ -64,7 +68,11 @@ struct _FuelInjector_DTC {
     bool is_injection_bar;
 };
 
+#ifdef __arm__
+struct _FuelInjectorAlgorithm : _NT_algorithm {
+#else
 struct _FuelInjectorAlgorithm {
+#endif
     ChannelPattern patterns[MAX_CHANNELS];
     InjectionConfig injection_config;
     _FuelInjector_DTC* dtc;
