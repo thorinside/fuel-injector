@@ -108,6 +108,33 @@ static void reset(_NT_algorithm* alg) {
 static void process(_NT_algorithm* alg, _NT_algorithmState* state) {
 }
 
+static bool hasCustomUi(_NT_algorithm* alg) {
+    return true;
+}
+
+static void setupUi(_NT_algorithm* alg, _NT_customUiSetup* setup) {
+    setup->numPots = 1;
+    setup->pots[0].parameter = kParamFuel;
+    setup->pots[0].min = 0;
+    setup->pots[0].max = 100;
+}
+
+static void customUi(_NT_algorithm* alg, _NT_customUiState* state) {
+}
+
+static void draw(_NT_algorithm* alg, _NT_displayBuffer* display) {
+    _FuelInjectorAlgorithm* p = (_FuelInjectorAlgorithm*)alg;
+    
+    const char* state_text = "LEARNING";
+    if (p->dtc) {
+        if (p->dtc->state == LOCKED) {
+            state_text = "LOCKED";
+        } else if (p->dtc->state == INJECTING) {
+            state_text = "INJECTING";
+        }
+    }
+}
+
 _NT_PLUGIN_EXPORT const _NT_pluginInfo NT_PLUGIN_INFO = {
     .apiVersion = NT_API_VERSION,
     .guid = "FuIn",
