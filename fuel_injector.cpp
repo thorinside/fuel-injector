@@ -186,8 +186,10 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
 }
 
 // Custom UI check
-static bool fuel_injector_has_custom_ui(_NT_algorithm* self_base) {
-    return true;
+static uint32_t fuel_injector_has_custom_ui(_NT_algorithm* self_base) {
+    // Return 0 for now (no custom UI overrides)
+    // Could return kNT_potButtonL | kNT_potButtonC | kNT_potButtonR to override pots
+    return 0;
 }
 
 // Setup UI pots
