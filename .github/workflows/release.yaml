@@ -1,0 +1,55 @@
+name: Build and Release Fuel Injector
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Install ARM toolchain
+        run: |
+          brew update
+          brew install --cask gcc-arm-embedded
+
+      - name: Verify installation
+        run: |
+          arm-none-eabi-g++ --version
+
+      - name: Build Fuel Injector plugin
+        run: |
+          echo "Building Fuel Injector"
+          make clean
+          make hardware
+
+      - name: Prepare release directory
+        run: |
+          mkdir -p release/programs/plug-ins/fuel_injector
+          echo "Copying fuel_injector.o"
+          cp plugins/fuel_injector.o release/programs/plug-ins/fuel_injector/
+
+      - name: Zip plugin artifact
+        run: |
+          cd release
+          zip -r ../fuel-injector-plugin.zip programs
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fuel-injector-plugin.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

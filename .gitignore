@@ -1,0 +1,28 @@
+# Build artifacts
+build/
+plugins/
+tests/test_runner
+
+# Coverage files
+coverage/
+*.gcov
+*.gcda
+*.gcno
+*.gcda.*
+*.gcno.*
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.bak
+*.old

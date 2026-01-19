@@ -91,6 +91,23 @@ $(TEST_RUNNER): $(TEST_SOURCES)
 	@mkdir -p tests
 	g++ -std=c++11 -Wall -I. -o $(TEST_RUNNER) $(TEST_SOURCES)
 
+coverage: $(TEST_SOURCES)
+	@echo "Building with coverage..."
+	@mkdir -p tests coverage
+	g++ -std=c++11 -Wall -I. --coverage -fprofile-arcs -ftest-coverage -o $(TEST_RUNNER) $(TEST_SOURCES)
+	@echo "Running tests..."
+	./$(TEST_RUNNER)
+	@echo "Generating coverage report..."
+	@gcov $(TEST_SOURCES) -o . 2>/dev/null | grep -A 3 "fuel_injector.h" || echo "Coverage data generated"
+	@lcov --capture --directory . --output-file coverage/coverage.info --no-external 2>/dev/null || echo "lcov not installed (optional)"
+	@genhtml coverage/coverage.info --output-directory coverage/html 2>/dev/null || echo "genhtml not installed (optional)"
+	@echo ""
+	@echo "Coverage summary:"
+	@gcov fuel_injector.h -o . 2>/dev/null | grep -E "Lines executed|fuel_injector.h" || echo "Run 'gcov *.gcno' to see detailed coverage"
+	@echo ""
+	@echo "Coverage files generated in coverage/"
+	@echo "View detailed HTML report: open coverage/html/index.html"
+
 both: hardware test
 
 check: $(OUTPUT)
@@ -100,6 +117,6 @@ size: $(OUTPUT)
 	@$(SIZE_CMD)
 
 clean:
-	rm -rf $(BUILD_DIR) $(OUTPUT_DIR) $(TEST_RUNNER)
+	rm -rf $(BUILD_DIR) $(OUTPUT_DIR) $(TEST_RUNNER) coverage *.gcov *.gcda *.gcno
 
-.PHONY: all hardware test both check size clean
+.PHONY: all hardware test both check size clean coverage

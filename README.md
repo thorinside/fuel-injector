@@ -55,6 +55,33 @@ Expected output:
 All tests passed (529 assertions in 28 test cases)
 ```
 
+### Code Coverage
+
+Generate code coverage reports:
+
+```bash
+make coverage
+```
+
+This will:
+- Build tests with coverage instrumentation
+- Run all tests
+- Generate `.gcov` coverage files
+- Create coverage reports (if `lcov` installed)
+
+View coverage summary in terminal output, or install `lcov` and `genhtml` for HTML reports:
+
+```bash
+# macOS
+brew install lcov
+
+# Then regenerate coverage
+make clean && make coverage
+
+# View HTML report
+open coverage/html/index.html
+```
+
 ### Build for Hardware
 
 **Prerequisites**: ARM cross-compiler toolchain

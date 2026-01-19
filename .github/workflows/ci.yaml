@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Run unit tests
+        run: |
+          make test
+          ./tests/test_runner
+
+      - name: Generate coverage report
+        run: |
+          make clean
+          make coverage
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+  build-hardware:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install ARM toolchain
+        run: |
+          brew update
+          brew install --cask gcc-arm-embedded
+
+      - name: Verify installation
+        run: |
+          arm-none-eabi-g++ --version
+
+      - name: Build for hardware
+        run: |
+          make clean
+          make hardware
+
+      - name: Check binary size
+        run: |
+          ls -lh plugins/fuel_injector.o
+          SIZE=$(stat -f%z plugins/fuel_injector.o)
+          echo "Binary size: $SIZE bytes"
+          if [ $SIZE -gt 65536 ]; then
+            echo "Error: Binary size ($SIZE bytes) exceeds 64KB limit"
+            exit 1
+          fi
+          echo "✓ Binary size OK ($SIZE bytes < 64KB)"
+
+      - name: Upload hardware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuel_injector-hardware
+          path: plugins/fuel_injector.o
+          retention-days: 30
