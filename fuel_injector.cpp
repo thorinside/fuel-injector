@@ -328,6 +328,22 @@ static bool fuel_injector_draw(_NT_algorithm* self_base) {
     return false;
 }
 
+// Parameter UI prefix callback for channel numbering
+static int fuel_injector_parameter_ui_prefix(_NT_algorithm* self_base, int p, char* buff) {
+    const int kNumSharedParams = 14;
+    const int kParamsPerChannel = 3;
+    
+    if (p >= kNumSharedParams) {
+        int channel = (p - kNumSharedParams) / kParamsPerChannel;
+        int len = NT_intToString(buff, 1 + channel);
+        buff[len++] = ':';
+        buff[len] = 0;
+        return len;
+    }
+    
+    return 0;
+}
+
 // Factory definition
 static const _NT_factory s_fuel_injector_factory = {
     .guid = FUEL_INJECTOR_GUID,
@@ -347,7 +363,12 @@ static const _NT_factory s_fuel_injector_factory = {
     .tags = kNT_tagUtility,
     .hasCustomUi = fuel_injector_has_custom_ui,
     .customUi = fuel_injector_custom_ui,
-    .setupUi = fuel_injector_setup_ui
+    .setupUi = fuel_injector_setup_ui,
+    .serialise = NULL,
+    .deserialise = NULL,
+    .midiSysEx = NULL,
+    .parameterUiPrefix = fuel_injector_parameter_ui_prefix,
+    .parameterString = NULL
 };
 
 // Plugin entry point
