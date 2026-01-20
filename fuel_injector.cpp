@@ -13,7 +13,7 @@ static const _NT_specification specifications[] = {
     { .name = "Channels", .min = 1, .max = MAX_CHANNELS, .def = 4, .type = kNT_typeGeneric },
 };
 
-// Parameter indices
+// Parameter indices (implicitly defined by array order)
 enum {
     kParamFuel,
     kParamPPQN,
@@ -29,8 +29,39 @@ enum {
     kParamClockSource,
     kParamClockInput,
     kParamResetInput,
-    // Per-channel parameters follow
-    kNumBaseParams
+    // Channel 1
+    kParamCh1TrigIn,
+    kParamCh1TrigOut,
+    kParamCh1TrigOutMode,
+    // Channel 2
+    kParamCh2TrigIn,
+    kParamCh2TrigOut,
+    kParamCh2TrigOutMode,
+    // Channel 3
+    kParamCh3TrigIn,
+    kParamCh3TrigOut,
+    kParamCh3TrigOutMode,
+    // Channel 4
+    kParamCh4TrigIn,
+    kParamCh4TrigOut,
+    kParamCh4TrigOutMode,
+    // Channel 5
+    kParamCh5TrigIn,
+    kParamCh5TrigOut,
+    kParamCh5TrigOutMode,
+    // Channel 6
+    kParamCh6TrigIn,
+    kParamCh6TrigOut,
+    kParamCh6TrigOutMode,
+    // Channel 7
+    kParamCh7TrigIn,
+    kParamCh7TrigOut,
+    kParamCh7TrigOutMode,
+    // Channel 8
+    kParamCh8TrigIn,
+    kParamCh8TrigOut,
+    kParamCh8TrigOutMode,
+    kNumParameters
 };
 
 static const char* clockSourceStrings[] = { "CV", "MIDI", NULL };
@@ -51,6 +82,30 @@ static const _NT_parameter s_parameters[] = {
     { .name = "Clock Source", .min = 0, .max = 1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = clockSourceStrings },
     NT_PARAMETER_CV_INPUT("Clock Input", 0, 1)
     NT_PARAMETER_CV_INPUT("Reset Input", 0, 2)
+    // Channel 1
+    NT_PARAMETER_CV_INPUT("Ch1 Trig In", 0, 3)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch1 Trig Out", 0, 15)
+    // Channel 2
+    NT_PARAMETER_CV_INPUT("Ch2 Trig In", 0, 4)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch2 Trig Out", 0, 16)
+    // Channel 3
+    NT_PARAMETER_CV_INPUT("Ch3 Trig In", 0, 5)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch3 Trig Out", 0, 17)
+    // Channel 4
+    NT_PARAMETER_CV_INPUT("Ch4 Trig In", 0, 6)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch4 Trig Out", 0, 18)
+    // Channel 5
+    NT_PARAMETER_CV_INPUT("Ch5 Trig In", 0, 7)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch5 Trig Out", 0, 19)
+    // Channel 6
+    NT_PARAMETER_CV_INPUT("Ch6 Trig In", 0, 8)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch6 Trig Out", 0, 20)
+    // Channel 7
+    NT_PARAMETER_CV_INPUT("Ch7 Trig In", 0, 9)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch7 Trig Out", 0, 21)
+    // Channel 8
+    NT_PARAMETER_CV_INPUT("Ch8 Trig In", 0, 10)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch8 Trig Out", 0, 22)
 };
 
 // Parameter pages
@@ -61,7 +116,15 @@ static const uint8_t s_page_control[] = {
 };
 
 static const uint8_t s_page_routing[] = {
-    kParamClockSource, kParamClockInput, kParamResetInput
+    kParamClockSource, kParamClockInput, kParamResetInput,
+    kParamCh1TrigIn, kParamCh1TrigOut, kParamCh1TrigOutMode,
+    kParamCh2TrigIn, kParamCh2TrigOut, kParamCh2TrigOutMode,
+    kParamCh3TrigIn, kParamCh3TrigOut, kParamCh3TrigOutMode,
+    kParamCh4TrigIn, kParamCh4TrigOut, kParamCh4TrigOutMode,
+    kParamCh5TrigIn, kParamCh5TrigOut, kParamCh5TrigOutMode,
+    kParamCh6TrigIn, kParamCh6TrigOut, kParamCh6TrigOutMode,
+    kParamCh7TrigIn, kParamCh7TrigOut, kParamCh7TrigOutMode,
+    kParamCh8TrigIn, kParamCh8TrigOut, kParamCh8TrigOutMode
 };
 
 static const _NT_parameterPage s_pages[] = {
@@ -88,7 +151,7 @@ static void fuel_injector_initialise(_NT_staticMemoryPtrs& ptrs, const _NT_stati
 static void fuel_injector_calculate_requirements(_NT_algorithmRequirements& req, const int32_t* specifications) {
     int numChannels = specifications ? specifications[kSpecChannels] : 4;
     
-    req.numParameters = kNumBaseParams;
+    req.numParameters = kNumParameters;
     req.sram = sizeof(_FuelInjectorAlgorithm);
     req.dram = 0;
     req.dtc = sizeof(_FuelInjector_DTC);
