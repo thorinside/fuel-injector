@@ -189,6 +189,17 @@ static _NT_algorithm* fuel_injector_construct(const _NT_algorithmMemoryPtrs& ptr
         alg->dtc->clock_tick_counter = 0;
         alg->dtc->prev_clock_value = 0.0f;
         alg->dtc->prev_reset_value = 0.0f;
+        alg->dtc->current_bar_index = 0;
+        alg->dtc->is_injection_bar = false;
+        alg->dtc->prng.state = 12345;
+        for (int c = 0; c < MAX_CHANNELS; ++c) {
+            alg->dtc->prev_trigger_value[c] = 0.0f;
+            alg->dtc->trigger_active_steps_remaining[c] = 0;
+        }
+    }
+    
+    for (int c = 0; c < MAX_CHANNELS; ++c) {
+        memset(&alg->patterns[c], 0, sizeof(ChannelPattern));
     }
     
     return reinterpret_cast<_NT_algorithm*>(alg);
@@ -216,39 +227,35 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
     _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
     
     int numFrames = numFramesBy4 * 4;
-    
-    // TODO: Process trigger inputs/outputs per channel
-    // Example dynamic parameter access:
-    // for (int c = 0; c < self->numChannels; ++c) {
-    //     int base = kNumSharedParams + c * kParamsPerChannel;
-    //     int trigInBus = self->v[base + kChannelParamTrigIn] - 1;
-    //     int trigOutBus = self->v[base + kChannelParamTrigOut] - 1;
-    //     bool trigOutMode = self->v[base + kChannelParamTrigOutMode];
-    //     // ... process triggers for this channel ...
-    // }
-    
-    // Process clock input
     int clockBus = self->v[kParamClockInput] - 1;
     int resetBus = self->v[kParamResetInput] - 1;
+    int ppqn = self->v[kParamPPQN];
+    int barLength = self->v[kParamBarLength];
+    int ticksPerBar = ppqn * barLength;
+    
+    const int TRIGGER_PULSE_SAMPLES = 5;
+    const float TRIGGER_THRESHOLD = 1.0f;
+    const float TRIGGER_HIGH = 5.0f;
     
     for (int frame = 0; frame < numFrames; frame++) {
+        bool clockTick = false;
+        
         // Clock detection (CV mode)
-        if (self->v[kParamClockSource] == 0) {  // CV
+        if (self->v[kParamClockSource] == 0) {
             float clockValue = busFrames[clockBus * numFrames + frame];
             
-            // Rising edge detection at 1.0V threshold
-            if (clockValue >= 1.0f && self->dtc->prev_clock_value < 1.0f) {
-                // Clock tick detected
+            if (clockValue >= TRIGGER_THRESHOLD && self->dtc->prev_clock_value < TRIGGER_THRESHOLD) {
+                clockTick = true;
                 self->dtc->clock_tick_counter++;
-                
-                // Calculate bar position
-                int ppqn = self->v[kParamPPQN];
-                int barLength = self->v[kParamBarLength];
-                int ticksPerBar = ppqn * barLength;
                 
                 if (self->dtc->clock_tick_counter >= (uint32_t)ticksPerBar) {
                     self->dtc->clock_tick_counter = 0;
                     self->dtc->bar_counter++;
+                    self->dtc->current_bar_index = (self->dtc->current_bar_index + 1) % 2;
+                    
+                    for (int c = 0; c < self->numChannels; ++c) {
+                        shiftBarsForNewBar(self->patterns[c]);
+                    }
                 }
                 
                 self->dtc->current_bar_position = self->dtc->clock_tick_counter;
@@ -259,14 +266,60 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
         
         // Reset detection
         float resetValue = busFrames[resetBus * numFrames + frame];
-        if (resetValue >= 1.0f && self->dtc->prev_reset_value < 1.0f) {
-            // Reset triggered
+        if (resetValue >= TRIGGER_THRESHOLD && self->dtc->prev_reset_value < TRIGGER_THRESHOLD) {
             self->dtc->state = LEARNING;
             self->dtc->bar_counter = 0;
             self->dtc->current_bar_position = 0;
             self->dtc->clock_tick_counter = 0;
+            self->dtc->current_bar_index = 0;
+            
+            for (int c = 0; c < self->numChannels; ++c) {
+                memset(&self->patterns[c], 0, sizeof(ChannelPattern));
+            }
         }
         self->dtc->prev_reset_value = resetValue;
+        
+        // Process each channel's trigger input/output
+        for (int c = 0; c < self->numChannels; ++c) {
+            int base = kNumSharedParams + c * kParamsPerChannel;
+            int trigInBus = self->v[base + kChannelParamTrigIn] - 1;
+            int trigOutBus = self->v[base + kChannelParamTrigOut] - 1;
+            bool replaceMode = self->v[base + kChannelParamTrigOutMode];
+            
+            float trigInValue = busFrames[trigInBus * numFrames + frame];
+            float* trigOut = &busFrames[trigOutBus * numFrames + frame];
+            
+            // Detect trigger input rising edge
+            bool triggerDetected = (trigInValue >= TRIGGER_THRESHOLD && 
+                                   self->dtc->prev_trigger_value[c] < TRIGGER_THRESHOLD);
+            
+            if (triggerDetected && clockTick) {
+                int tickPos = self->dtc->current_bar_position;
+                recordHit(self->patterns[c], self->dtc->current_bar_index, tickPos);
+            }
+            
+            self->dtc->prev_trigger_value[c] = trigInValue;
+            
+            // Generate output trigger
+            bool shouldOutput = false;
+            
+            if (triggerDetected) {
+                self->dtc->trigger_active_steps_remaining[c] = TRIGGER_PULSE_SAMPLES;
+            }
+            
+            if (self->dtc->trigger_active_steps_remaining[c] > 0) {
+                shouldOutput = true;
+                self->dtc->trigger_active_steps_remaining[c]--;
+            }
+            
+            // Write output
+            float outputValue = shouldOutput ? TRIGGER_HIGH : 0.0f;
+            if (replaceMode) {
+                *trigOut = outputValue;
+            } else {
+                *trigOut += outputValue;
+            }
+        }
     }
 }
 

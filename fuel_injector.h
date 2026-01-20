@@ -63,9 +63,11 @@ struct _FuelInjector_DTC {
     uint8_t trigger_active_steps_remaining[MAX_CHANNELS];
     float prev_clock_value;
     float prev_reset_value;
+    float prev_trigger_value[MAX_CHANNELS];
     XorShift32 prng;
     FuelInjectorState state;
     bool is_injection_bar;
+    uint8_t current_bar_index;
 };
 
 #ifdef __arm__
