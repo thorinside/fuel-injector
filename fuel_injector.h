@@ -70,14 +70,32 @@ struct _FuelInjector_DTC {
 
 #ifdef __arm__
 struct _FuelInjectorAlgorithm : _NT_algorithm {
+    ChannelPattern patterns[MAX_CHANNELS];
+    InjectionConfig injection_config;
+    _FuelInjector_DTC* dtc;
+    
+    // Dynamic parameter arrays (added for specification-dependent parameters)
+    _NT_parameter* params;              // pointer to dynamic parameter array
+    int numParams;                       // actual parameter count
+    _NT_parameterPage* pages;           // pointer to dynamic page array
+    int numPages;                        // actual page count (always 2)
+    uint8_t* controlPageParams;         // parameter indices for control page
+    uint8_t* routingPageParams;         // parameter indices for routing page
+    _NT_parameterPages paramPages;      // pages wrapper struct
+    int numChannels;                     // number of active channels
+    
+    _FuelInjectorAlgorithm() : dtc(nullptr), params(nullptr), numParams(0), 
+                                pages(nullptr), numPages(2), 
+                                controlPageParams(nullptr), routingPageParams(nullptr),
+                                numChannels(0) {}
 #else
 struct _FuelInjectorAlgorithm {
-#endif
     ChannelPattern patterns[MAX_CHANNELS];
     InjectionConfig injection_config;
     _FuelInjector_DTC* dtc;
     
     _FuelInjectorAlgorithm() : dtc(nullptr) {}
+#endif
 };
 
 inline bool detectRisingEdge(float current, float previous, float threshold) {

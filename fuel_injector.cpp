@@ -66,8 +66,8 @@ enum {
 
 static const char* clockSourceStrings[] = { "CV", "MIDI", NULL };
 
-// Parameter definitions
-static const _NT_parameter s_parameters[] = {
+// Shared parameters (14 params: indices 0-13)
+static const _NT_parameter sharedParameters[] = {
     { .name = "Fuel", .min = 0, .max = 100, .def = 100, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
     { .name = "PPQN", .min = 24, .max = 96, .def = 48, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
     { .name = "Bar Length", .min = 1, .max = 8, .def = 4, .unit = kNT_unitNone, .scaling = 0, .enumStrings = NULL },
@@ -82,59 +82,12 @@ static const _NT_parameter s_parameters[] = {
     { .name = "Clock Source", .min = 0, .max = 1, .def = 0, .unit = kNT_unitEnum, .scaling = 0, .enumStrings = clockSourceStrings },
     NT_PARAMETER_CV_INPUT("Clock Input", 0, 1)
     NT_PARAMETER_CV_INPUT("Reset Input", 0, 2)
-    // Channel 1
-    NT_PARAMETER_CV_INPUT("Ch1 Trig In", 0, 3)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch1 Trig Out", 0, 15)
-    // Channel 2
-    NT_PARAMETER_CV_INPUT("Ch2 Trig In", 0, 4)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch2 Trig Out", 0, 16)
-    // Channel 3
-    NT_PARAMETER_CV_INPUT("Ch3 Trig In", 0, 5)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch3 Trig Out", 0, 17)
-    // Channel 4
-    NT_PARAMETER_CV_INPUT("Ch4 Trig In", 0, 6)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch4 Trig Out", 0, 18)
-    // Channel 5
-    NT_PARAMETER_CV_INPUT("Ch5 Trig In", 0, 7)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch5 Trig Out", 0, 19)
-    // Channel 6
-    NT_PARAMETER_CV_INPUT("Ch6 Trig In", 0, 8)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch6 Trig Out", 0, 20)
-    // Channel 7
-    NT_PARAMETER_CV_INPUT("Ch7 Trig In", 0, 9)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch7 Trig Out", 0, 21)
-    // Channel 8
-    NT_PARAMETER_CV_INPUT("Ch8 Trig In", 0, 10)
-    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Ch8 Trig Out", 0, 22)
 };
 
-// Parameter pages
-static const uint8_t s_page_control[] = {
-    kParamFuel, kParamPPQN, kParamBarLength, kParamInjectionInterval, kParamLearningBars,
-    kParamProbMicrotiming, kParamProbOmission, kParamProbRoll,
-    kParamProbDensity, kParamProbPermutation, kParamProbPolyrhythm
-};
-
-static const uint8_t s_page_routing[] = {
-    kParamClockSource, kParamClockInput, kParamResetInput,
-    kParamCh1TrigIn, kParamCh1TrigOut, kParamCh1TrigOutMode,
-    kParamCh2TrigIn, kParamCh2TrigOut, kParamCh2TrigOutMode,
-    kParamCh3TrigIn, kParamCh3TrigOut, kParamCh3TrigOutMode,
-    kParamCh4TrigIn, kParamCh4TrigOut, kParamCh4TrigOutMode,
-    kParamCh5TrigIn, kParamCh5TrigOut, kParamCh5TrigOutMode,
-    kParamCh6TrigIn, kParamCh6TrigOut, kParamCh6TrigOutMode,
-    kParamCh7TrigIn, kParamCh7TrigOut, kParamCh7TrigOutMode,
-    kParamCh8TrigIn, kParamCh8TrigOut, kParamCh8TrigOutMode
-};
-
-static const _NT_parameterPage s_pages[] = {
-    { .name = "Control", .numParams = ARRAY_SIZE(s_page_control), .params = s_page_control },
-    { .name = "Routing", .numParams = ARRAY_SIZE(s_page_routing), .params = s_page_routing },
-};
-
-static const _NT_parameterPages parameterPages = {
-    .numPages = ARRAY_SIZE(s_pages),
-    .pages = s_pages,
+// Channel parameter template (3 params per channel)
+static const _NT_parameter channelParamTemplate[] = {
+    NT_PARAMETER_CV_INPUT("Trig In", 0, 3)
+    NT_PARAMETER_CV_OUTPUT_WITH_MODE("Trig Out", 0, 15)
 };
 
 // Static requirements (shared memory)
@@ -149,10 +102,24 @@ static void fuel_injector_initialise(_NT_staticMemoryPtrs& ptrs, const _NT_stati
 
 // Calculate per-instance requirements
 static void fuel_injector_calculate_requirements(_NT_algorithmRequirements& req, const int32_t* specifications) {
+    // Get channel count from specification, defaulting to 4
     int numChannels = specifications ? specifications[kSpecChannels] : 4;
     
-    req.numParameters = kNumParameters;
-    req.sram = sizeof(_FuelInjectorAlgorithm);
+    // Clamp to valid range [1, MAX_CHANNELS]
+    if (numChannels < 1) numChannels = 1;
+    if (numChannels > MAX_CHANNELS) numChannels = MAX_CHANNELS;
+    
+    // Compute dynamic parameter count
+    const int kNumSharedParams = 14;  // Fuel through Reset Input
+    const int kParamsPerChannel = 3;  // Trig In, Trig Out, Trig Out Mode
+    int numParams = kNumSharedParams + numChannels * kParamsPerChannel;
+    
+    req.numParameters = numParams;
+    req.sram = sizeof(_FuelInjectorAlgorithm)
+                + numParams * sizeof(_NT_parameter)
+                + 2 * sizeof(_NT_parameterPage)
+                + 11 * sizeof(uint8_t)  // control page indices
+                + (3 + numChannels * 3) * sizeof(uint8_t);  // routing page indices
     req.dram = 0;
     req.dtc = sizeof(_FuelInjector_DTC);
     req.itc = 0;
@@ -160,12 +127,82 @@ static void fuel_injector_calculate_requirements(_NT_algorithmRequirements& req,
 
 // Construct algorithm instance
 static _NT_algorithm* fuel_injector_construct(const _NT_algorithmMemoryPtrs& ptrs, const _NT_algorithmRequirements& req, const int32_t* specifications) {
+    // Get channel count
+    int numChannels = specifications ? specifications[kSpecChannels] : 4;
+    if (numChannels < 1) numChannels = 1;
+    if (numChannels > MAX_CHANNELS) numChannels = MAX_CHANNELS;
+    
+    const int kNumSharedParams = 14;
+    const int kParamsPerChannel = 3;
+    int numParams = kNumSharedParams + numChannels * kParamsPerChannel;
+    
     // Use placement new to construct algorithm in provided SRAM
     _FuelInjectorAlgorithm* alg = new (ptrs.sram) _FuelInjectorAlgorithm();
     
+    // Set up memory pointers in SRAM after the struct
+    uint8_t* mem = (uint8_t*)ptrs.sram + sizeof(_FuelInjectorAlgorithm);
+    
+    alg->params = (_NT_parameter*)mem;
+    mem += numParams * sizeof(_NT_parameter);
+    alg->numParams = numParams;
+    
+    alg->pages = (_NT_parameterPage*)mem;
+    mem += 2 * sizeof(_NT_parameterPage);
+    alg->numPages = 2;
+    
+    alg->controlPageParams = mem;
+    mem += 11 * sizeof(uint8_t);
+    
+    alg->routingPageParams = mem;
+    mem += (3 + numChannels * 3) * sizeof(uint8_t);
+    
+    alg->numChannels = numChannels;
+    
+    // Copy shared parameters
+    memcpy(alg->params, sharedParameters, sizeof(sharedParameters));
+    
+    // Build per-channel parameters
+    for (int c = 0; c < numChannels; ++c) {
+        int base = kNumSharedParams + c * kParamsPerChannel;
+        memcpy(&alg->params[base], channelParamTemplate, sizeof(channelParamTemplate));
+        
+        // Set default bus assignments
+        alg->params[base + 0].def = 3 + c;   // Trig In
+        alg->params[base + 1].def = 15 + c;  // Trig Out
+    }
+    
+    // Build Control page indices
+    for (int i = 0; i < 11; ++i) {
+        alg->controlPageParams[i] = i;
+    }
+    
+    // Build Routing page indices
+    alg->routingPageParams[0] = 11;  // Clock Source
+    alg->routingPageParams[1] = 12;  // Clock Input
+    alg->routingPageParams[2] = 13;  // Reset Input
+    for (int c = 0; c < numChannels; ++c) {
+        int base = kNumSharedParams + c * kParamsPerChannel;
+        alg->routingPageParams[3 + c * 3 + 0] = base + 0;  // Trig In
+        alg->routingPageParams[3 + c * 3 + 1] = base + 1;  // Trig Out
+        alg->routingPageParams[3 + c * 3 + 2] = base + 2;  // Trig Out Mode
+    }
+    
+    // Set up pages
+    alg->pages[0].name = "Control";
+    alg->pages[0].numParams = 11;
+    alg->pages[0].params = alg->controlPageParams;
+    
+    alg->pages[1].name = "Routing";
+    alg->pages[1].numParams = 3 + numChannels * 3;
+    alg->pages[1].params = alg->routingPageParams;
+    
+    // Set up parameter pages wrapper
+    alg->paramPages.numPages = 2;
+    alg->paramPages.pages = alg->pages;
+    
     // Initialize inherited members
-    alg->parameters = s_parameters;
-    alg->parameterPages = &parameterPages;
+    alg->parameters = alg->params;
+    alg->parameterPages = &alg->paramPages;
     
     // Initialize DTC (hot state)
     if (ptrs.dtc) {
