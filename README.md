@@ -33,11 +33,12 @@ A multi-channel trigger processor plugin for Expert Sleepers distingNT that lear
 - **INJECTING**: Applies variations on injection bars
 
 ### Parameters
-- **Page 1 (Control)**: Fuel, PPQN, Bar Length, Injection Interval, Learning Bars, 6× injection probabilities
-- **Page 2 (Routing)**: Clock Source, Clock Input, Reset Input, 8× Trigger I/O
+- **Page 1 (Control)**: Fuel, PPQN, Bar Length, Injection Interval, Learning Bars, 6× injection probabilities (11 parameters - fixed)
+- **Page 2 (Routing)**: Clock Source, Clock Input, Reset Input, N× Trigger I/O (3 + 3N parameters - varies with channel count)
+- **Total Parameters**: 14 + 3N (17 for 1 channel, 26 for 4 channels, 38 for 8 channels)
 
 ### Configuration
-- 1-8 channels (configurable via specification)
+- 1-8 channels (configurable via specification at instantiation)
 - PPQN: 24-96 (default 48)
 - Bar Length: 1-8 quarter notes (default 4)
 - Injection Interval: 1-16 bars (default 4)

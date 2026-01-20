@@ -197,6 +197,7 @@ static _NT_algorithm* fuel_injector_construct(const _NT_algorithmMemoryPtrs& ptr
 // Parameter changed callback
 static void fuel_injector_parameter_changed(_NT_algorithm* self_base, int p_idx) {
     _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
+    (void)self;
     
     // Handle parameter changes
     switch (p_idx) {
@@ -245,7 +246,7 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
                 int barLength = self->v[kParamBarLength];
                 int ticksPerBar = ppqn * barLength;
                 
-                if (self->dtc->clock_tick_counter >= ticksPerBar) {
+                if (self->dtc->clock_tick_counter >= (uint32_t)ticksPerBar) {
                     self->dtc->clock_tick_counter = 0;
                     self->dtc->bar_counter++;
                 }
@@ -289,26 +290,13 @@ static void fuel_injector_setup_ui(_NT_algorithm* self_base, _NT_float3& pots) {
 // Custom UI handling
 static void fuel_injector_custom_ui(_NT_algorithm* self_base, const _NT_uiData& data) {
     _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
-    
-    // TODO: Implement custom UI controls
+    (void)self;
+    (void)data;
 }
 
 // Draw custom display
 static bool fuel_injector_draw(_NT_algorithm* self_base) {
-    _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
-    
-    // Determine state text
-    const char* state_text = "LEARNING";
-    if (self->dtc) {
-        if (self->dtc->state == LOCKED) {
-            state_text = "LOCKED";
-        } else if (self->dtc->state == INJECTING) {
-            state_text = "INJECTING";
-        }
-    }
-    
-    // Draw state (using platform adapter would require access to it)
-    // For now, return false to show standard parameter display
+    (void)self_base;
     return false;
 }
 
