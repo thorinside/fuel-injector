@@ -13,7 +13,7 @@ static const _NT_specification specifications[] = {
     { .name = "Channels", .min = 1, .max = MAX_CHANNELS, .def = 4, .type = kNT_typeGeneric },
 };
 
-// Parameter indices (implicitly defined by array order)
+// Parameter indices for shared parameters
 enum {
     kParamFuel,
     kParamPPQN,
@@ -29,39 +29,15 @@ enum {
     kParamClockSource,
     kParamClockInput,
     kParamResetInput,
-    // Channel 1
-    kParamCh1TrigIn,
-    kParamCh1TrigOut,
-    kParamCh1TrigOutMode,
-    // Channel 2
-    kParamCh2TrigIn,
-    kParamCh2TrigOut,
-    kParamCh2TrigOutMode,
-    // Channel 3
-    kParamCh3TrigIn,
-    kParamCh3TrigOut,
-    kParamCh3TrigOutMode,
-    // Channel 4
-    kParamCh4TrigIn,
-    kParamCh4TrigOut,
-    kParamCh4TrigOutMode,
-    // Channel 5
-    kParamCh5TrigIn,
-    kParamCh5TrigOut,
-    kParamCh5TrigOutMode,
-    // Channel 6
-    kParamCh6TrigIn,
-    kParamCh6TrigOut,
-    kParamCh6TrigOutMode,
-    // Channel 7
-    kParamCh7TrigIn,
-    kParamCh7TrigOut,
-    kParamCh7TrigOutMode,
-    // Channel 8
-    kParamCh8TrigIn,
-    kParamCh8TrigOut,
-    kParamCh8TrigOutMode,
-    kNumParameters
+    kNumSharedParams = 14
+};
+
+// Per-channel parameter offsets
+enum {
+    kChannelParamTrigIn = 0,
+    kChannelParamTrigOut = 1,
+    kChannelParamTrigOutMode = 2,
+    kParamsPerChannel = 3
 };
 
 static const char* clockSourceStrings[] = { "CV", "MIDI", NULL };
@@ -238,9 +214,17 @@ static void fuel_injector_parameter_changed(_NT_algorithm* self_base, int p_idx)
 static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int numFramesBy4) {
     _FuelInjectorAlgorithm* self = static_cast<_FuelInjectorAlgorithm*>(self_base);
     
-    // TODO: Implement actual processing
-    // For now, just pass through
     int numFrames = numFramesBy4 * 4;
+    
+    // TODO: Process trigger inputs/outputs per channel
+    // Example dynamic parameter access:
+    // for (int c = 0; c < self->numChannels; ++c) {
+    //     int base = kNumSharedParams + c * kParamsPerChannel;
+    //     int trigInBus = self->v[base + kChannelParamTrigIn] - 1;
+    //     int trigOutBus = self->v[base + kChannelParamTrigOut] - 1;
+    //     bool trigOutMode = self->v[base + kChannelParamTrigOutMode];
+    //     // ... process triggers for this channel ...
+    // }
     
     // Process clock input
     int clockBus = self->v[kParamClockInput] - 1;
