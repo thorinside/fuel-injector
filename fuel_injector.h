@@ -59,8 +59,11 @@ struct InjectionConfig {
 struct _FuelInjector_DTC {
     uint32_t clock_tick_counter;
     uint32_t bar_counter;
+    uint32_t bars_since_lock;
+    uint32_t samples_since_clock;
+    uint32_t last_clock_period_samples;
     uint16_t current_bar_position;
-    uint8_t trigger_active_steps_remaining[MAX_CHANNELS];
+    uint16_t trigger_active_steps_remaining[MAX_CHANNELS];
     float prev_clock_value;
     float prev_reset_value;
     float prev_trigger_value[MAX_CHANNELS];
@@ -68,11 +71,17 @@ struct _FuelInjector_DTC {
     FuelInjectorState state;
     bool is_injection_bar;
     uint8_t current_bar_index;
+    
+    // State machine tracking
+    uint8_t stable_bars_count;
+    uint8_t required_stable_bars;
 };
 
-#ifdef __arm__
+#ifdef _DISTINGNT_API_H
 struct _FuelInjectorAlgorithm : _NT_algorithm {
     ChannelPattern patterns[MAX_CHANNELS];
+    ChannelPattern* learned_patterns;
+    bool (*output_patterns)[MAX_TICKS_PER_BAR];
     InjectionConfig injection_config;
     _FuelInjector_DTC* dtc;
     
@@ -86,18 +95,19 @@ struct _FuelInjectorAlgorithm : _NT_algorithm {
     _NT_parameterPages paramPages;      // pages wrapper struct
     int numChannels;                     // number of active channels
     
-    _FuelInjectorAlgorithm() : dtc(nullptr), params(nullptr), numParams(0), 
-                                pages(nullptr), numPages(2), 
-                                controlPageParams(nullptr), routingPageParams(nullptr),
-                                numChannels(0) {}
+    _FuelInjectorAlgorithm() : learned_patterns(nullptr), output_patterns(nullptr), dtc(nullptr),
+                                params(nullptr), numParams(0), pages(nullptr), numPages(2),
+                                controlPageParams(nullptr), routingPageParams(nullptr), numChannels(0) {}
 #else
 struct _FuelInjectorAlgorithm {
     ChannelPattern patterns[MAX_CHANNELS];
+    ChannelPattern* learned_patterns;
+    bool (*output_patterns)[MAX_TICKS_PER_BAR];
     InjectionConfig injection_config;
     _FuelInjector_DTC* dtc;
     
-    _FuelInjectorAlgorithm() : dtc(nullptr) {}
-#endif
+    _FuelInjectorAlgorithm() : learned_patterns(nullptr), output_patterns(nullptr), dtc(nullptr) {}
+#endif  // _DISTINGNT_API_H
 };
 
 inline bool detectRisingEdge(float current, float previous, float threshold) {
@@ -210,11 +220,11 @@ inline void updateLearningState(PatternLearner& learner, float similarity) {
 
 inline void shiftBarsForNewBar(ChannelPattern& pattern) {
     for (int i = 0; i < MAX_TICKS_PER_BAR; i++) {
-        pattern.hit_positions_bar1[i] = pattern.hit_positions_bar2[i];
-        pattern.hit_positions_bar2[i] = 0;
+        pattern.hit_positions_bar2[i] = pattern.hit_positions_bar1[i];
+        pattern.hit_positions_bar1[i] = 0;
     }
-    pattern.hit_count_bar1 = pattern.hit_count_bar2;
-    pattern.hit_count_bar2 = 0;
+    pattern.hit_count_bar2 = pattern.hit_count_bar1;
+    pattern.hit_count_bar1 = 0;
 }
 
 inline bool detectPatternChange(const ChannelPattern& learned, const ChannelPattern& incoming) {

@@ -87,7 +87,7 @@ hardware:
 test: $(TEST_RUNNER)
 	@echo "Test runner built successfully"
 
-$(TEST_RUNNER): $(TEST_SOURCES)
+$(TEST_RUNNER): $(TEST_SOURCES) fuel_injector.h tests/catch.hpp
 	@mkdir -p tests
 	g++ -std=c++11 -Wall -I. -o $(TEST_RUNNER) $(TEST_SOURCES)
 

@@ -96,10 +96,10 @@ TEST_CASE("Pattern learning - 2 bar history", "[pattern_learning]") {
         recordHit(pattern, 0, 10);
         recordHit(pattern, 1, 20);
         
-        int old_bar2_count = pattern.hit_count_bar2;
+        int old_bar1_count = pattern.hit_count_bar1;
         shiftBarsForNewBar(pattern);
         
-        REQUIRE(pattern.hit_count_bar1 == old_bar2_count);
-        REQUIRE(pattern.hit_count_bar2 == 0);
+        REQUIRE(pattern.hit_count_bar2 == old_bar1_count);
+        REQUIRE(pattern.hit_count_bar1 == 0);
     }
 }
