@@ -585,16 +585,18 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
                                 applyDensityBurstInjection(self->output_patterns[c], burstBeatIndices, burstCount, ppqn);
                             }
 
-                            if (shouldApplyInjection(probPermutation, fuel, self->dtc->prng)) {
-                                uint8_t eighthNote = ppqn / 2;
-                                uint8_t segmentCount = ticksPerBar / eighthNote;
-                                uint8_t permutation[16];
-                                generatePermutation(permutation, segmentCount, &self->dtc->prng);
-                                bool permutedPattern[MAX_TICKS_PER_BAR];
-                                memset(permutedPattern, 0, sizeof(permutedPattern));
-                                applyPermutationInjection(self->output_patterns[c], permutedPattern, permutation, ppqn, ticksPerBar);
-                                memcpy(self->output_patterns[c], permutedPattern, ticksPerBar * sizeof(bool));
-                            }
+	                            if (shouldApplyInjection(probPermutation, fuel, self->dtc->prng)) {
+	                                const uint16_t eighthNoteTicks = (ppqn >= 2) ? (uint16_t)(ppqn / 2) : 0;
+	                                if (eighthNoteTicks > 0) {
+	                                    const uint8_t segmentCount = (uint8_t)(ticksPerBar / (int)eighthNoteTicks);
+	                                    uint8_t permutation[16];
+	                                    generatePermutation(permutation, segmentCount, &self->dtc->prng);
+	                                    bool permutedPattern[MAX_TICKS_PER_BAR];
+	                                    memset(permutedPattern, 0, ticksPerBar * sizeof(bool));
+	                                    applyPermutationInjection(self->output_patterns[c], permutedPattern, permutation, (uint16_t)ppqn, (uint16_t)ticksPerBar);
+	                                    memcpy(self->output_patterns[c], permutedPattern, ticksPerBar * sizeof(bool));
+	                                }
+	                            }
 
                             if (shouldApplyInjection(probPolyrhythm, fuel, self->dtc->prng)) {
                                 uint8_t polyType = selectPolyrhythmType(&self->dtc->prng);

@@ -422,30 +422,100 @@ inline void applyDensityBurstInjection(bool* output_pattern, uint8_t* burst_beat
 }
 
 inline void generatePermutation(uint8_t* permutation, uint8_t segment_count, XorShift32* rng) {
+    if (!permutation || !rng || segment_count == 0) {
+        return;
+    }
+
+    // permutation[dst_segment] = src_segment
     for (uint8_t i = 0; i < segment_count; i++) {
         permutation[i] = i;
     }
-    
-    for (uint8_t i = segment_count - 1; i > 0; i--) {
-        uint8_t j = rng->next() % (i + 1);
-        uint8_t temp = permutation[i];
-        permutation[i] = permutation[j];
-        permutation[j] = temp;
+
+    // Keep the bar downbeat anchored (segment 0). For longer patterns, also keep the midpoint
+    // anchored and only permute within each half to retain some phrase structure.
+    auto shuffleRange = [&](uint8_t startInclusive, uint8_t endExclusive) {
+        if (endExclusive <= startInclusive + 1) {
+            return;
+        }
+        for (int i = (int)endExclusive - 1; i > (int)startInclusive; --i) {
+            uint8_t j = startInclusive + (rng->next() % (uint8_t)(i - (int)startInclusive + 1));
+            uint8_t tmp = permutation[i];
+            permutation[i] = permutation[j];
+            permutation[j] = tmp;
+        }
+    };
+
+    if (segment_count >= 8) {
+        const uint8_t half = segment_count / 2;
+        shuffleRange(1, half);
+        shuffleRange(half + 1, segment_count);
+    } else {
+        shuffleRange(1, segment_count);
+    }
+
+    // Ensure we produce a non-identity permutation when there is something to permute.
+    bool moved = false;
+    for (uint8_t i = 0; i < segment_count; i++) {
+        if (permutation[i] != i) {
+            moved = true;
+            break;
+        }
+    }
+    if (!moved && segment_count > 2) {
+        // Swap two non-anchored destination segments.
+        if (segment_count >= 8) {
+            const uint8_t half = segment_count / 2;
+            // Prefer a small swap within a half rather than across the whole bar.
+            const uint8_t a = 1;
+            uint8_t b = (half > 2) ? 2 : (uint8_t)(half + 1);
+            if (b >= segment_count) {
+                b = (uint8_t)(segment_count - 1);
+            }
+            uint8_t tmp = permutation[a];
+            permutation[a] = permutation[b];
+            permutation[b] = tmp;
+        } else {
+            const uint8_t a = 1;
+            const uint8_t b = (uint8_t)(segment_count - 1);
+            uint8_t tmp = permutation[a];
+            permutation[a] = permutation[b];
+            permutation[b] = tmp;
+        }
     }
 }
 
 inline void applyPermutationInjection(bool* input_pattern, bool* output_pattern, uint8_t* permutation, uint16_t ppqn, uint16_t pattern_length) {
-    uint16_t eighth_note = ppqn / 2;
-    uint8_t segment_count = pattern_length / eighth_note;
-    
-    for (uint8_t i = 0; i < segment_count; i++) {
-        uint16_t src_start = permutation[i] * eighth_note;
-        uint16_t dst_start = i * eighth_note;
-        
-        for (uint16_t j = 0; j < eighth_note; j++) {
-            uint16_t src_pos = src_start + j;
-            uint16_t dst_pos = dst_start + j;
-            
+    if (!input_pattern || !output_pattern || !permutation || pattern_length == 0) {
+        return;
+    }
+
+    // Eighth-note segment size (in ticks). If PPQN is too low to represent eighth notes,
+    // fall back to an identity copy rather than producing silence or dividing by zero.
+    const uint16_t eighth_note_ticks = (ppqn >= 2) ? (ppqn / 2) : 0;
+    if (eighth_note_ticks == 0) {
+        for (uint16_t i = 0; i < pattern_length; i++) {
+            output_pattern[i] = input_pattern[i];
+        }
+        return;
+    }
+
+    const uint8_t segment_count = (uint8_t)(pattern_length / eighth_note_ticks);
+
+    for (uint16_t i = 0; i < pattern_length; i++) {
+        output_pattern[i] = false;
+    }
+
+    for (uint8_t dst_segment = 0; dst_segment < segment_count; dst_segment++) {
+        uint8_t src_segment = permutation[dst_segment];
+        if (src_segment >= segment_count) {
+            src_segment = dst_segment;
+        }
+
+        const uint16_t src_start = (uint16_t)src_segment * eighth_note_ticks;
+        const uint16_t dst_start = (uint16_t)dst_segment * eighth_note_ticks;
+        for (uint16_t j = 0; j < eighth_note_ticks; j++) {
+            const uint16_t src_pos = src_start + j;
+            const uint16_t dst_pos = dst_start + j;
             if (src_pos < pattern_length && dst_pos < pattern_length) {
                 output_pattern[dst_pos] = input_pattern[src_pos];
             }
