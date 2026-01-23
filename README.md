@@ -1,206 +1,77 @@
-# Fuel Injector
+# Fuel Injector (distingNT plugin)
 
-A multi-channel trigger processor plugin for Expert Sleepers distingNT that learns rhythmic patterns and injects musical variations at phrase boundaries.
+Fuel Injector is a multi-channel trigger processor for Expert Sleepers distingNT. It learns a stable incoming groove per channel and, at a configurable interval, outputs an injected one-bar variation while passing the original triggers through unchanged the rest of the time.
 
-## Status
+## How It Works
 
-✅ **Software Development Complete**  
-⚠️ **Hardware Verification Pending** (requires ARM toolchain and distingNT hardware)
+- **Clocked** by an external **CV clock** (rising edge ≥ 1.0V).
+- **Reset** defines bar 1 and aligns the injection schedule to the last reset.
+- **Learning**: records incoming trigger edges on the clock grid; once the pattern is stable for `Learn Bars`, it becomes the learned pattern.
+- **Locked**: continues pass-through and monitors for pattern changes; if the incoming pattern changes, it automatically re-learns.
+- **Injection bars**: every `Inj Interval` bars (counting from the most recent reset), Fuel Injector outputs a modified version of the learned pattern for exactly one bar.
 
-**Tests**: 529 assertions passing in 28 test cases  
-**Coverage**: 100% of implemented functions  
-**Tasks**: 16/16 complete
+## Output Behavior
 
-## Features
+- **Normal bars (non-injection)**: pass-through preserves the incoming gate length and voltage.
+- **Injection bars**: output is generated as **5V trigger pulses** (≈10ms max, clamped to ≤ 1/2 clock period so pulses always return to 0V).
 
-### Pattern Learning
-- Learns incoming trigger patterns over 2 bars
-- Detects pattern changes and automatically re-learns
-- 90% similarity threshold using Hamming distance
-- Supports both CV (1.0V threshold) and MIDI clock
+## Parameters
 
-### Injection Types (6 total)
-1. **Microtiming Shift**: ±1/16 note timing variations
-2. **Hit Omission**: Dropout with 25% max, non-downbeat preference
-3. **Hit Duplication/Roll**: 2x, 3x, 4x subdivisions
-4. **Density Burst**: Eighth-note subdivisions on existing beats
-5. **Sub-Bar Permutation**: Rearrange eighth-note segments
-6. **Polyrhythmic Overlay**: 3-over-4 and 5-over-4 patterns
+### Control Page
 
-### State Machine
-- **LEARNING**: Captures incoming patterns
-- **LOCKED**: Pattern stable, ready for injection
-- **INJECTING**: Applies variations on injection bars
+- **Fuel** (0–100%): master intensity; at 0% the plugin is effectively a pass-through.
+- **PPQN**: 1, 2, 4, 8, 16, 24, 48 (clock ticks per quarter note).
+- **Bar Length**: 1–8 quarter notes.
+- **Inj Interval**: 1–16 bars (relative to the most recent reset).
+- **Learn Bars**: 1–8 bars (how long the pattern must remain stable before locking).
+- **P:Microtiming**: shifts a subset of hits earlier/later (subtle at low values, wider/more frequent at high).
+- **P:Omission**: removes a small number of hits (prefers non-downbeats).
+- **P:Roll**: adds ratchets (mostly 2x at low values; 3x/4x appear at higher values).
+- **P:Density**: adds extra eighth-note hits on selected beats.
+- **P:Permutation**: reorders eighth-note segments (kept subtle unless probability is high).
+- **P:Polyrhythm**: overlays a small number of evenly-spaced hits (only applies at higher probability).
 
-### Parameters
-- **Page 1 (Control)**: Fuel, PPQN, Bar Length, Injection Interval, Learning Bars, 6× injection probabilities (11 parameters - fixed)
-- **Page 2 (Routing)**: Clock Source, Clock Input, Reset Input, N× Trigger I/O (3 + 3N parameters - varies with channel count)
-- **Total Parameters**: 14 + 3N (17 for 1 channel, 26 for 4 channels, 38 for 8 channels)
+### Routing Page
 
-### Configuration
-- 1-8 channels (configurable via specification at instantiation)
-- PPQN: 24-96 (default 48)
-- Bar Length: 1-8 quarter notes (default 4)
-- Injection Interval: 1-16 bars (default 4)
+- **Clock Source**: CV (MIDI reserved; not implemented in this version).
+- **Clock Input**: CV input bus for the clock.
+- **Reset Input**: CV input bus for reset.
+- Per-channel:
+  - **Trig In**: incoming trigger/gate.
+  - **Trig Out**: output bus.
+  - **Trig Out mode**: Replace/Add.
 
-## Quick Start
+## Patching Notes
 
-### Run Tests
+- Use a clean clock into **Clock Input** and send a reset pulse to **Reset Input** when you want the injection schedule to restart from bar 1.
+- If you set **Trig Out mode = Add**, avoid mapping **Trig Out** to the same bus as **Trig In** (otherwise you can sum voltages during injection bars).
+
+## Build & Install
+
+Run tests:
 
 ```bash
 make test && ./tests/test_runner
 ```
 
-Expected output:
-```
-All tests passed (529 assertions in 28 test cases)
-```
-
-### Code Coverage
-
-Generate code coverage reports:
-
-```bash
-make coverage
-```
-
-This will:
-- Build tests with coverage instrumentation
-- Run all tests
-- Generate `.gcov` coverage files
-- Create coverage reports (if `lcov` installed)
-
-View coverage summary in terminal output, or install `lcov` and `genhtml` for HTML reports:
-
-```bash
-# macOS
-brew install lcov
-
-# Then regenerate coverage
-make clean && make coverage
-
-# View HTML report
-open coverage/html/index.html
-```
-
-### Build for Hardware
-
-**Prerequisites**: ARM cross-compiler toolchain
-
-```bash
-# macOS
-brew install arm-none-eabi-gcc
-
-# Linux
-sudo apt-get install gcc-arm-none-eabi
-```
-
-**Build**:
+Build the plugin object for distingNT:
 
 ```bash
 make hardware
 ```
 
-Output: `plugins/fuel_injector.o` (must be < 64KB)
+Deploy:
 
-### Deploy to distingNT
+1. Copy `plugins/fuel_injector.o` to the SD card `plugins/` directory.
+2. Insert SD card into distingNT and reboot.
+3. Select **Fuel Injector** from the plugin list.
 
-1. Copy `fuel_injector.o` to SD card `plugins/` directory
-2. Insert SD card into distingNT
-3. Power on and select "Fuel Injector" from plugin list
+## Troubleshooting
 
-## Project Structure
-
-```
-fuel_injector/
-├── fuel_injector.h              # Algorithm implementation (457 lines)
-├── fuel_injector.cpp            # distingNT plugin structure (152 lines)
-├── Makefile                     # Build system
-├── tests/
-│   ├── catch.hpp                # Catch2 v2.13.10 framework
-│   ├── test_main.cpp            # Test runner entry
-│   └── test_*.cpp               # 13 test files
-├── BUILD_STATUS.md              # Build instructions
-├── COMPLETION_REPORT.md         # Detailed completion report
-└── .sisyphus/
-    ├── plans/fuel-injector.md   # Complete work plan
-    └── notepads/fuel-injector/  # Session learnings and blockers
-```
-
-## Development
-
-### TDD Workflow
-
-This project was built using Test-Driven Development:
-
-1. **RED**: Write failing test
-2. **GREEN**: Implement minimum code to pass
-3. **REFACTOR**: Clean up
-4. **COMMIT**: Atomic commit with semantic message
-
-### Test Coverage
-
-| Component | Assertions |
-|-----------|------------|
-| Data Structures | 16 |
-| CV Clock | 11 |
-| MIDI Clock | 8 |
-| Pattern Learning | 15 |
-| Change Detection | 7 |
-| Microtiming | 9 |
-| Omission | 11 |
-| Roll | 13 |
-| Density | 13 |
-| Permutation | 215 |
-| Polyrhythm | 156 |
-| State Machine | 19 |
-| Parameters | 22 |
-| **TOTAL** | **529** |
-
-## Technical Details
-
-### Memory Usage
-- DTC (hot state): 40 bytes
-- Per-channel pattern: 720 bytes
-- 8 channels total: ~5.8KB
-
-### Clock Handling
-- CV: 1.0V threshold, rising edge detection
-- MIDI: Standard 24 PPQN (0xF8, 0xFA, 0xFC, 0xFF)
-- Internal PPQN: 24-96 configurable
-
-### Injection Probability
-- Formula: `scaled = (probability × fuel) / 100`
-- Fuel at 0%: Passthrough (no injection)
-- Fuel at 100%: Full probability
-
-## Documentation
-
-- **BUILD_STATUS.md**: Build instructions and current status
-- **COMPLETION_REPORT.md**: Comprehensive completion report with all details
-- **.sisyphus/plans/fuel-injector.md**: Complete work plan with all tasks
-- **.sisyphus/notepads/fuel-injector/**: Session learnings and blockers
-
-## Known Limitations
-
-- Hardware verification requires physical distingNT or nt_emu
-- Binary size verification requires ARM toolchain
-- Real-time performance testing requires hardware
+- **No injection happens**: check Fuel > 0, Clock Source = CV, a clock is connected, and reset isn’t being retriggered accidentally.
+- **Injections are too strong/too subtle**: start by adjusting Fuel, then the individual injection probabilities.
+- **Output looks “stuck high” on injection bars**: check your clock rate vs. the drum module’s input; generated triggers are short pulses and should return to 0V.
 
 ## License
 
 Copyright 2026 Neal Sanche
-
-## Author
-
-Neal Sanche
-
-## Acknowledgments
-
-- Expert Sleepers for the distingNT platform
-- Catch2 testing framework
-- TDD methodology
-
----
-
-**Status**: Ready for hardware deployment ✅

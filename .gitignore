@@ -18,6 +18,9 @@ coverage/
 *~
 
 # IDE files
+.cache/
+.clangd
+compile_commands.json
 .vscode/
 .idea/
 *.code-workspace
@@ -26,3 +29,6 @@ coverage/
 *.tmp
 *.bak
 *.old
+
+# Local tooling
+.sisyphus/boulder.json
