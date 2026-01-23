@@ -66,8 +66,6 @@ Deploy:
 2. Insert SD card into distingNT and reboot.
 3. Select **Fuel Injector** from the plugin list.
 
-Tip: GitHub Releases include a zip that already contains `programs/plug-ins/fuel_injector.o` — unzip it to the SD card root.
-
 ## Troubleshooting
 
 - **No injection happens**: check Fuel > 0, Clock Source = CV, a clock is connected, and reset isn’t being retriggered accidentally.
