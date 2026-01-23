@@ -44,6 +44,22 @@ static const char* clockSourceStrings[] = { "CV", "MIDI", NULL };
 static const char* ppqnStrings[] = { "1", "2", "4", "8", "16", "24", "48", NULL };
 static const int ppqnValues[] = { 1, 2, 4, 8, 16, 24, 48 };
 
+static inline uint8_t scaledPercent(uint8_t probability, uint8_t fuel) {
+    return (uint8_t)(((uint16_t)probability * (uint16_t)fuel) / 100);
+}
+
+static inline uint8_t easeInDepth(uint8_t percent) {
+    const uint16_t p = percent;
+    return (uint8_t)((p * p + 99) / 100);
+}
+
+static inline bool rollPercent(uint8_t percent, XorShift32& rng) {
+    if (percent == 0) {
+        return false;
+    }
+    return (rng.next() % 100) < percent;
+}
+
 // Shared parameters (14 params: indices 0-13)
 static const _NT_parameter sharedParameters[] = {
     { .name = "Fuel", .min = 0, .max = 100, .def = 100, .unit = kNT_unitPercent, .scaling = 0, .enumStrings = NULL },
@@ -393,22 +409,19 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
             
             self->dtc->prev_trigger_value[c] = trigInValue;
             
-            const bool playbackActive =
+            // Passthrough on normal bars; only generate triggers on injection bars.
+            const bool injectionPlaybackActive =
                     (fuel > 0) &&
-                    (self->dtc->state != LEARNING) &&
+                    (self->dtc->state == INJECTING) &&
                     clockEnabled &&
                     (self->learned_patterns != nullptr) &&
-                    ((self->dtc->state != INJECTING) || (self->output_patterns != nullptr));
+                    (self->output_patterns != nullptr);
 
-            if (playbackActive) {
+            if (injectionPlaybackActive) {
                 if (clockTick) {
                     bool hit = false;
                     if (tickPos >= 0 && tickPos < ticksPerBar) {
-                        if (self->dtc->state == INJECTING) {
-                            hit = (fuel > 0) && self->output_patterns[c][tickPos];
-                        } else {
-                            hit = self->learned_patterns[c].hit_positions_bar1[tickPos] > 0;
-                        }
+                        hit = self->output_patterns[c][tickPos];
                     }
                     if (hit) {
                         int triggerLengthSamples = baseTriggerLengthSamples;
@@ -544,68 +557,189 @@ static void fuel_injector_step(_NT_algorithm* self_base, float* busFrames, int n
                             uint8_t probRoll = self->v[kParamProbRoll];
                             uint8_t probDensity = self->v[kParamProbDensity];
                             uint8_t probPermutation = self->v[kParamProbPermutation];
-                            uint8_t probPolyrhythm = self->v[kParamProbPolyrhythm];
+	                            uint8_t probPolyrhythm = self->v[kParamProbPolyrhythm];
 
-                            if (shouldApplyInjection(probMicrotiming, fuel, self->dtc->prng)) {
-                                int range = calculateMicrotimingRange(ppqn);
-                                for (int i = 0; i < ticksPerBar; i++) {
-                                    if (self->output_patterns[c][i]) {
-                                        int shift = (self->dtc->prng.next() % (range * 2 + 1)) - range;
-                                        int adjacent =
-                                                (i > 0 && self->output_patterns[c][i - 1]) ? i - 1 :
-                                                (i < ticksPerBar - 1 && self->output_patterns[c][i + 1]) ? i + 1 : -1;
-                                        int newPos = applyMicrotimingShift(i, shift, adjacent);
-                                        if (newPos != i && newPos >= 0 && newPos < ticksPerBar) {
-                                            self->output_patterns[c][i] = false;
-                                            self->output_patterns[c][newPos] = true;
-                                        }
-                                    }
-                                }
-                            }
+	                            if (shouldApplyInjection(probMicrotiming, fuel, self->dtc->prng)) {
+	                                const uint8_t strength = scaledPercent(probMicrotiming, (uint8_t)fuel);
+	                                if (strength > 0) {
+	                                    const int baseRange = calculateMicrotimingRange(ppqn); // +/- 1/16th at full strength
+	                                    int maxShift = (baseRange * (int)strength + 99) / 100;
+	                                    if (maxShift < 1) maxShift = 1;
+	                                    if (maxShift > baseRange) maxShift = baseRange;
 
-                            if (shouldApplyInjection(probOmission, fuel, self->dtc->prng)) {
-                                uint8_t omitIndices[MAX_TICKS_PER_BAR];
-                                uint8_t omitCount = 0;
-                                selectHitsForOmission(&self->learned_patterns[c], omitIndices, &omitCount, fuel, &self->dtc->prng, ticksPerBar);
-                                applyOmissionInjection(self->output_patterns[c], omitIndices, omitCount);
-                            }
+	                                    bool original[MAX_TICKS_PER_BAR];
+	                                    bool modified[MAX_TICKS_PER_BAR];
+	                                    memcpy(original, self->output_patterns[c], ticksPerBar * sizeof(bool));
+	                                    memcpy(modified, original, ticksPerBar * sizeof(bool));
 
-                            if (shouldApplyInjection(probRoll, fuel, self->dtc->prng)) {
-                                uint8_t rollIndices[MAX_TICKS_PER_BAR];
-                                uint8_t rollCount = 0;
-                                uint8_t rollSubdivisions[MAX_TICKS_PER_BAR];
-                                selectHitsForRoll(&self->learned_patterns[c], rollIndices, &rollCount, rollSubdivisions, fuel, &self->dtc->prng, ticksPerBar);
-                                applyRollInjection(self->output_patterns[c], rollIndices, rollCount, rollSubdivisions, ppqn);
-                            }
+	                                    for (int i = 0; i < ticksPerBar; i++) {
+	                                        if (!original[i]) {
+	                                            continue;
+	                                        }
+	                                        if (i == 0) {
+	                                            continue; // keep bar downbeat stable
+	                                        }
+	                                        if ((i % ppqn) == 0 && strength < 80) {
+	                                            continue; // keep beat downbeats stable at lower strengths
+	                                        }
+	                                        if (!rollPercent(strength, self->dtc->prng)) {
+	                                            continue;
+	                                        }
 
-                            if (shouldApplyInjection(probDensity, fuel, self->dtc->prng)) {
-                                uint8_t burstBeatIndices[MAX_TICKS_PER_BAR / 48];
-                                uint8_t burstCount = 0;
-                                selectBeatsForDensityBurst(&self->learned_patterns[c], burstBeatIndices, &burstCount, fuel, &self->dtc->prng, ticksPerBar, ppqn);
-                                applyDensityBurstInjection(self->output_patterns[c], burstBeatIndices, burstCount, ppqn);
-                            }
+	                                        int shift = (int)(self->dtc->prng.next() % (uint32_t)(maxShift * 2 + 1)) - maxShift;
+	                                        if (shift == 0) {
+	                                            continue;
+	                                        }
 
-	                            if (shouldApplyInjection(probPermutation, fuel, self->dtc->prng)) {
-	                                const uint16_t eighthNoteTicks = (ppqn >= 2) ? (uint16_t)(ppqn / 2) : 0;
-	                                if (eighthNoteTicks > 0) {
-	                                    const uint8_t segmentCount = (uint8_t)(ticksPerBar / (int)eighthNoteTicks);
-	                                    uint8_t permutation[16];
-	                                    generatePermutation(permutation, segmentCount, &self->dtc->prng);
-	                                    bool permutedPattern[MAX_TICKS_PER_BAR];
-	                                    memset(permutedPattern, 0, ticksPerBar * sizeof(bool));
-	                                    applyPermutationInjection(self->output_patterns[c], permutedPattern, permutation, (uint16_t)ppqn, (uint16_t)ticksPerBar);
-	                                    memcpy(self->output_patterns[c], permutedPattern, ticksPerBar * sizeof(bool));
+	                                        int adjacent =
+	                                                (i > 0 && original[i - 1]) ? i - 1 :
+	                                                (i < ticksPerBar - 1 && original[i + 1]) ? i + 1 : -1;
+	                                        int newPos = applyMicrotimingShift(i, shift, adjacent);
+	                                        if (newPos < 0) newPos = 0;
+	                                        if (newPos >= ticksPerBar) newPos = ticksPerBar - 1;
+
+	                                        if (newPos != i && !modified[newPos]) {
+	                                            modified[i] = false;
+	                                            modified[newPos] = true;
+	                                        }
+	                                    }
+
+	                                    memcpy(self->output_patterns[c], modified, ticksPerBar * sizeof(bool));
 	                                }
 	                            }
 
-                            if (shouldApplyInjection(probPolyrhythm, fuel, self->dtc->prng)) {
-                                uint8_t polyType = selectPolyrhythmType(&self->dtc->prng);
-                                applyPolyrhythmInjection(self->output_patterns[c], polyType, ppqn, barLength);
-                            }
-                        }
-                    }
-                }
-            }
+	                            if (shouldApplyInjection(probOmission, fuel, self->dtc->prng)) {
+	                                uint8_t omitIndices[MAX_TICKS_PER_BAR];
+	                                uint8_t omitCount = 0;
+	                                const uint8_t strength = scaledPercent(probOmission, (uint8_t)fuel);
+	                                const uint8_t depth = easeInDepth(strength);
+	                                selectHitsForOmission(&self->learned_patterns[c], omitIndices, &omitCount, depth, &self->dtc->prng, ticksPerBar);
+	                                applyOmissionInjection(self->output_patterns[c], omitIndices, omitCount);
+	                            }
+
+	                            if (shouldApplyInjection(probRoll, fuel, self->dtc->prng)) {
+	                                uint8_t rollIndices[MAX_TICKS_PER_BAR];
+	                                uint8_t rollCount = 0;
+	                                uint8_t rollSubdivisions[MAX_TICKS_PER_BAR];
+	                                const uint8_t strength = scaledPercent(probRoll, (uint8_t)fuel);
+	                                selectHitsForRoll(&self->learned_patterns[c], rollIndices, &rollCount, rollSubdivisions, strength, &self->dtc->prng, ticksPerBar);
+	                                applyRollInjection(self->output_patterns[c], rollIndices, rollCount, rollSubdivisions, ppqn);
+	                            }
+
+	                            if (shouldApplyInjection(probDensity, fuel, self->dtc->prng)) {
+	                                uint8_t burstBeatIndices[MAX_TICKS_PER_BAR / 48];
+	                                uint8_t burstCount = 0;
+	                                const uint8_t strength = scaledPercent(probDensity, (uint8_t)fuel);
+	                                selectBeatsForDensityBurst(&self->learned_patterns[c], burstBeatIndices, &burstCount, strength, &self->dtc->prng, ticksPerBar, ppqn);
+	                                applyDensityBurstInjection(self->output_patterns[c], burstBeatIndices, burstCount, ppqn);
+	                            }
+
+		                            if (shouldApplyInjection(probPermutation, fuel, self->dtc->prng)) {
+		                                const uint8_t strength = scaledPercent(probPermutation, (uint8_t)fuel);
+		                                const uint8_t depth = easeInDepth(strength);
+
+		                                const uint16_t eighthNoteTicks = (ppqn >= 2) ? (uint16_t)(ppqn / 2) : 0;
+		                                if (eighthNoteTicks > 0) {
+		                                    uint8_t segmentCount = (uint8_t)(ticksPerBar / (int)eighthNoteTicks);
+		                                    if (segmentCount > 16) {
+		                                        segmentCount = 16;
+		                                    }
+
+		                                    if (segmentCount > 2 && depth >= 25) {
+		                                        uint8_t permutation[16];
+		                                        for (uint8_t i = 0; i < segmentCount; i++) {
+		                                            permutation[i] = i;
+		                                        }
+
+		                                        const uint8_t half = (segmentCount >= 8) ? (uint8_t)(segmentCount / 2) : 0;
+
+		                                        if (depth >= 70) {
+		                                            // High depth: full shuffle (anchored downbeat/midpoint) from the helper.
+		                                            generatePermutation(permutation, segmentCount, &self->dtc->prng);
+		                                        } else {
+		                                            // Medium depth: a few local adjacent swaps within halves to keep it readable.
+		                                            uint8_t swapCount = (uint8_t)(1 + (uint8_t)((depth - 25) / 25)); // 1..2 for depth 25..74
+		                                            if (swapCount > 4) swapCount = 4;
+
+		                                            for (uint8_t s = 0; s < swapCount; s++) {
+		                                                uint8_t start = 1;
+		                                                uint8_t end = segmentCount;
+
+		                                                if (segmentCount >= 8) {
+		                                                    bool useFirstHalf = (self->dtc->prng.next() % 2) == 0;
+		                                                    start = useFirstHalf ? (uint8_t)1 : (uint8_t)(half + 1);
+		                                                    end = useFirstHalf ? half : segmentCount;
+		                                                }
+
+		                                                if (end > start + 1) {
+		                                                    uint8_t a = (uint8_t)(start + (self->dtc->prng.next() % (uint32_t)(end - start - 1)));
+		                                                    uint8_t b = (uint8_t)(a + 1);
+
+		                                                    if (segmentCount >= 8 && (a == half || b == half)) {
+		                                                        continue; // keep midpoint anchor
+		                                                    }
+
+		                                                    uint8_t tmp = permutation[a];
+		                                                    permutation[a] = permutation[b];
+		                                                    permutation[b] = tmp;
+		                                                }
+		                                            }
+		                                        }
+
+		                                        bool permutedPattern[MAX_TICKS_PER_BAR];
+		                                        memset(permutedPattern, 0, ticksPerBar * sizeof(bool));
+		                                        applyPermutationInjection(self->output_patterns[c], permutedPattern, permutation, (uint16_t)ppqn, (uint16_t)ticksPerBar);
+		                                        memcpy(self->output_patterns[c], permutedPattern, ticksPerBar * sizeof(bool));
+		                                    }
+		                                }
+		                            }
+
+	                            if (shouldApplyInjection(probPolyrhythm, fuel, self->dtc->prng)) {
+	                                const uint8_t strength = scaledPercent(probPolyrhythm, (uint8_t)fuel);
+	                                const uint8_t depth = easeInDepth(strength);
+
+	                                // Polyrhythm is structurally heavy; only apply at higher depths.
+	                                if (depth >= 50) {
+	                                    uint8_t polyType = 3;
+	                                    if (depth > 70) {
+	                                        uint8_t chance5 = (uint8_t)(((uint16_t)(depth - 70) * 100) / 30); // 0..100
+	                                        if (rollPercent(chance5, self->dtc->prng)) {
+	                                            polyType = 5;
+	                                        }
+	                                    }
+
+	                                    const uint16_t barTicks = (uint16_t)ticksPerBar;
+	                                    const uint16_t spacing = (polyType > 0) ? (uint16_t)(barTicks / polyType) : 0;
+	                                    if (spacing > 0) {
+	                                        const uint8_t maxExtras = (uint8_t)(polyType - 1);
+	                                        uint8_t extras = (uint8_t)(((uint16_t)depth * maxExtras) / 100); // 0..maxExtras
+	                                        if (extras > maxExtras) extras = maxExtras;
+
+	                                        if (extras > 0) {
+	                                            uint8_t candidates[4];
+	                                            for (uint8_t i = 0; i < maxExtras; i++) {
+	                                                candidates[i] = (uint8_t)(i + 1);
+	                                            }
+	                                            for (uint8_t i = (uint8_t)(maxExtras - 1); i > 0; i--) {
+	                                                uint8_t j = (uint8_t)(self->dtc->prng.next() % (i + 1));
+	                                                uint8_t tmp = candidates[i];
+	                                                candidates[i] = candidates[j];
+	                                                candidates[j] = tmp;
+	                                            }
+	                                            for (uint8_t i = 0; i < extras; i++) {
+	                                                uint16_t pos = (uint16_t)(candidates[i] * spacing);
+	                                                if (pos < barTicks) {
+	                                                    self->output_patterns[c][pos] = true;
+	                                                }
+	                                            }
+	                                        }
+	                                    }
+	                                }
+	                            }
+	                        }
+	                    }
+	                }
+	            }
 
             // Rotate the recording buffers for the next bar: bar1 -> bar2, clear bar1.
             for (int c = 0; c < self->numChannels; ++c) {

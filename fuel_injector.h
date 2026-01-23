@@ -354,14 +354,33 @@ inline void selectHitsForRoll(ChannelPattern* pattern, uint8_t* roll_indices, ui
     if (hit_count == 0) {
         return;
     }
-    
-    uint8_t subdivisions[] = {2, 3, 4};
-    
+
     for (uint8_t i = 0; i < hit_count; i++) {
         if (shouldApplyInjection(100, fuel, *rng)) {
             roll_indices[*roll_count] = hit_positions[i];
-            uint8_t subdiv_index = rng->next() % 3;
-            roll_subdivisions[*roll_count] = subdivisions[subdiv_index];
+            // Scale roll intensity with fuel/strength:
+            // - low: mostly doubles
+            // - mid: doubles + some triplets
+            // - high: triplets + some 4x ratchets
+            uint32_t r = rng->next() % 100;
+            uint8_t subdivision = 2;
+            if (fuel < 34) {
+                subdivision = 2;
+            } else if (fuel < 67) {
+                uint8_t p3 = (uint8_t)(((uint16_t)(fuel - 34) * 60) / 32); // 0..60%
+                subdivision = (r < p3) ? 3 : 2;
+            } else {
+                uint8_t p4 = (uint8_t)(((uint16_t)(fuel - 67) * 40) / 33); // 0..40%
+                uint8_t p3 = (uint8_t)(40 + (((uint16_t)(fuel - 67) * 20) / 33)); // 40..60%
+                if (r < p4) {
+                    subdivision = 4;
+                } else if (r < (uint32_t)p4 + (uint32_t)p3) {
+                    subdivision = 3;
+                } else {
+                    subdivision = 2;
+                }
+            }
+            roll_subdivisions[*roll_count] = subdivision;
             (*roll_count)++;
         }
     }
