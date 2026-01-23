@@ -62,9 +62,11 @@ make hardware
 
 Deploy:
 
-1. Copy `plugins/fuel_injector.o` to the SD card `plugins/` directory.
+1. Copy `plugins/fuel_injector.o` to the SD card at `/programs/plug-ins/fuel_injector.o`.
 2. Insert SD card into distingNT and reboot.
 3. Select **Fuel Injector** from the plugin list.
+
+Tip: GitHub Releases include a zip that already contains `programs/plug-ins/fuel_injector.o` — unzip it to the SD card root.
 
 ## Troubleshooting
 

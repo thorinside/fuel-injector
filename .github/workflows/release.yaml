@@ -19,6 +19,11 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      - name: Run unit tests
+        run: |
+          make test
+          ./tests/test_runner
+
       - name: Install ARM toolchain
         run: |
           brew update
@@ -34,22 +39,24 @@ jobs:
           make clean
           make hardware
 
-      - name: Prepare release directory
+      - name: Prepare SD card directory
         run: |
-          mkdir -p release/programs/plug-ins/fuel_injector
+          mkdir -p release/programs/plug-ins
           echo "Copying fuel_injector.o"
-          cp plugins/fuel_injector.o release/programs/plug-ins/fuel_injector/
+          cp plugins/fuel_injector.o release/programs/plug-ins/fuel_injector.o
 
       - name: Zip plugin artifact
         run: |
           cd release
-          zip -r ../fuel-injector-plugin.zip programs
+          zip -r ../fuel-injector-${{ github.ref_name }}.zip programs
           cd ..
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: fuel-injector-plugin.zip
+          files: |
+            plugins/fuel_injector.o
+            fuel-injector-${{ github.ref_name }}.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
