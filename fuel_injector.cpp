@@ -4,7 +4,7 @@
 #include "fuel_injector.h"
 
 // Define GUID for this algorithm
-#define FUEL_INJECTOR_GUID NT_MULTICHAR('F', 'u', 'I', 'n')
+#define FUEL_INJECTOR_GUID NT_MULTICHAR('T', 'h', 'f', 'i')
 
 // Specifications
 enum { kSpecChannels };
